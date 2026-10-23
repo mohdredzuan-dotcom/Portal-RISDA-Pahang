@@ -145,7 +145,7 @@
       return arr;
     };
 
-    // --- DASHBOARD PENGURUSAN STAF / HR ---
+       // --- KOMPONEN DASHBOARD SUMBER MANUSIA (HR) LENGKAP DENGAN VISUALISASI ---
     const DashboardHR = () => {
       const [searchQuery, setSearchQuery] = useState('');
       const [filterPtj, setFilterPtj] = useState('Semua');
@@ -153,17 +153,9 @@
       const [selectedStaff, setSelectedStaff] = useState(null);
       const [showRetiringOnly, setShowRetiringOnly] = useState(false);
       const [showAnalytics, setShowAnalytics] = useState(true);
+
       const [staffData, setStaffData] = useState([]);
       const [isLoadingCSV, setIsLoadingCSV] = useState(true);
-
-      const handleResetFilters = () => {
-        setSearchQuery('');
-        setFilterPtj('Semua');
-        setFilterSkim('Semua');
-        setShowRetiringOnly(false);
-      };
-
-      const isFiltered = searchQuery !== '' || filterPtj !== 'Semua' || filterSkim !== 'Semua' || showRetiringOnly;
 
       useEffect(() => {
         const fetchGoogleSheetsData = async () => {
@@ -172,9 +164,10 @@
             const response = await fetch(csvUrl);
             const csvText = await response.text();
             const parsedData = parseCSV(csvText);
-            
+
             if (parsedData.length > 1) {
               const headers = parsedData[0].map(h => h.trim().toUpperCase());
+              
               const mappedData = parsedData.slice(1).map((row, index) => {
                 const getVal = (keywords) => {
                   const keys = Array.isArray(keywords) ? keywords : [keywords];
@@ -209,21 +202,58 @@
 
                 const directImageUrl = resolveDriveUrl(rawGambar);
                 const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(nama)}&background=1e3a8a&color=facc15&size=128&bold=true`;
-                const finalGambar = directImageUrl || defaultAvatar;
+                const finalGambar = directImageUrl || (noKp ? `gambar_staf/${noKp}.jpg` : defaultAvatar);
+
                 const noPekerja = getVal('NO PEKERJA');
                 let rawSkim = getVal('SKIM');
 
-                if (noPekerja.includes('85185') || noPekerja.includes('76730') || nama.toUpperCase().includes('SYUHAIDA BINTI SHUKOR') || nama.toUpperCase().includes('WAN KAMARIAH BINTI WAN MUHAMMAD')) {
+                if (
+                  noPekerja.includes('85185') || 
+                  noPekerja.includes('76730') || 
+                  nama.toUpperCase().includes('SYUHAIDA BINTI SHUKOR') || 
+                  nama.toUpperCase().includes('WAN KAMARIAH BINTI WAN MUHAMMAD')
+                ) {
                   rawSkim = 'G12';
                 }
 
                 const rawJantina = getVal('JANTINA').trim().toUpperCase();
-                let jantinaPenuh = rawJantina.startsWith('L') ? 'Lelaki' : rawJantina.startsWith('P') ? 'Perempuan' : rawJantina;
+                let jantinaPenuh = rawJantina;
+                if (rawJantina.startsWith('L')) jantinaPenuh = 'Lelaki';
+                else if (rawJantina.startsWith('P')) jantinaPenuh = 'Perempuan';
+
                 const tarikhLantikanStr = getVal(['LANTIKAN PERTAMA', 'TARIKHLANTIKAN', 'TARIKH LANTIKAN']);
+
+                const kiraTempohPerkhidmatan = (tarikhStr) => {
+                  if (!tarikhStr || tarikhStr === '-') return '-';
+                  const parts = tarikhStr.split(/[\/\-.]/);
+                  let lantikanDate = null;
+
+                  if (parts.length === 3) {
+                    if (parts[2].length === 4) lantikanDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                    else if (parts[0].length === 4) lantikanDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                  }
+
+                  if (!lantikanDate || isNaN(lantikanDate.getTime())) {
+                    const rawFallback = getVal('TEMPOH PERKHIDMATAN');
+                    return rawFallback !== '-' ? `${rawFallback} Tahun` : '-';
+                  }
+
+                  const today = new Date();
+                  let years = today.getFullYear() - lantikanDate.getFullYear();
+                  let months = today.getMonth() - lantikanDate.getMonth();
+                  let days = today.getDate() - lantikanDate.getDate();
+
+                  if (days < 0) months--;
+                  if (months < 0) { years--; months += 12; }
+
+                  if (years < 0) return '0 Tahun';
+                  if (months === 0) return `${years} Tahun`;
+                  return `${years} Tahun ${months} Bulan`;
+                };
 
                 return {
                   id: index + 1,
-                  nama,
+                  nama: nama,
                   no_kp: noKp,
                   no_pekerja: noPekerja,
                   emel: getVal(['EMEL', 'EMAIL']),
@@ -238,7 +268,7 @@
                   tarikh_lahir: tarikhLahir,
                   umur_bersara: getVal('UMUR BERSARA'),
                   tarikh_bersara: getVal('TARIKH BERSARA'),
-                  tempoh_perkhidmatan: getVal('TEMPOH PERKHIDMATAN') !== '-' ? `${getVal('TEMPOH PERKHIDMATAN')} Tahun` : '-',
+                  tempoh_perkhidmatan: kiraTempohPerkhidmatan(tarikhLantikanStr),
                   tarikh_pengesahan: getVal('PENGESAHAN JAWATAN'),
                   gambar: finalGambar
                 };
@@ -248,7 +278,7 @@
             }
             setIsLoadingCSV(false);
           } catch (error) {
-            console.error("Gagal muat turun data CSV:", error);
+            console.error("Gagal muat turun CSV:", error);
             setIsLoadingCSV(false);
           }
         };
@@ -256,42 +286,57 @@
         fetchGoogleSheetsData();
       }, []);
 
-      const filteredStaff = useMemo(() => {
-        return staffData.filter(s => {
-          const matchName = s.nama.toLowerCase().includes(searchQuery.toLowerCase()) || s.no_pekerja.includes(searchQuery);
-          const matchPtj = filterPtj === 'Semua' ? true : s.ptj === filterPtj;
-          const matchSkim = filterSkim === 'Semua' ? true : s.skim.replace(/[0-9]/g, '').trim().toUpperCase() === filterSkim; 
-          const matchRetiring = showRetiringOnly ? s.tarikh_bersara.includes('2027') : true;
-          return matchName && matchPtj && matchSkim && matchRetiring;
-        }).sort((a, b) => {
-          const ptjA = a.ptj || '';
-          const ptjB = b.ptj || '';
-          const isPrnA = ptjA.toUpperCase().includes('PRN - PAHANG');
-          const isPrnB = ptjB.toUpperCase().includes('PRN - PAHANG');
-          if (isPrnA && !isPrnB) return -1;
-          if (!isPrnA && isPrnB) return 1;
-          if (ptjA < ptjB) return -1;
-          if (ptjA > ptjB) return 1;
-          return (a.nama || '').localeCompare(b.nama || '');
-        });
-      }, [staffData, searchQuery, filterPtj, filterSkim, showRetiringOnly]);
+      const handleResetFilters = () => {
+        setSearchQuery('');
+        setFilterPtj('Semua');
+        setFilterSkim('Semua');
+        setShowRetiringOnly(false);
+      };
 
-      const uniquePtj = useMemo(() => {
-        const rawPtjList = [...new Set(staffData.map(s => s.ptj).filter(p => p && p !== '-'))].sort();
-        const prn = rawPtjList.find(p => p.toUpperCase().includes('PRN - PAHANG'));
-        const others = rawPtjList.filter(p => p !== prn);
-        return prn ? ['Semua', prn, ...others] : ['Semua', ...others];
-      }, [staffData]);
+      const isFiltered = searchQuery !== '' || filterPtj !== 'Semua' || filterSkim !== 'Semua' || showRetiringOnly;
 
-      const uniqueSkim = useMemo(() => {
-        const prioritySkims = ['N', 'G', 'W'];
-        const bottomSkims = ['J', 'H'];
-        const allDetected = [...new Set(staffData.map(s => s.skim.replace(/[0-9]/g, '').trim().toUpperCase()).filter(s => s && s !== '-'))];
-        const presPriority = prioritySkims.filter(s => allDetected.includes(s));
-        const middle = allDetected.filter(s => !prioritySkims.includes(s) && !bottomSkims.includes(s)).sort();
-        const presBottom = bottomSkims.filter(s => allDetected.includes(s));
-        return ['Semua', ...presPriority, ...middle, ...presBottom];
-      }, [staffData]);
+      const filteredStaff = staffData.filter(s => {
+        const matchName = s.nama.toLowerCase().includes(searchQuery.toLowerCase()) || s.no_pekerja.includes(searchQuery);
+        const matchPtj = filterPtj === 'Semua' ? true : s.ptj === filterPtj;
+        const matchSkim = filterSkim === 'Semua' ? true : s.skim.replace(/[0-9]/g, '').trim().toUpperCase() === filterSkim; 
+        const matchRetiring = showRetiringOnly ? s.tarikh_bersara.includes('2027') : true;
+        return matchName && matchPtj && matchSkim && matchRetiring;
+      }).sort((a, b) => {
+        const ptjA = a.ptj || '';
+        const ptjB = b.ptj || '';
+        const isPrnA = ptjA.toUpperCase().includes('PRN - PAHANG');
+        const isPrnB = ptjB.toUpperCase().includes('PRN - PAHANG');
+        
+        if (isPrnA && !isPrnB) return -1;
+        if (!isPrnA && isPrnB) return 1;
+        if (ptjA < ptjB) return -1;
+        if (ptjA > ptjB) return 1;
+
+        const getGradeNum = (str) => {
+          const match = (str || '').match(/\d+/);
+          return match ? parseInt(match[0], 10) : 0;
+        };
+        const gradeA = getGradeNum(a.skim);
+        const gradeB = getGradeNum(b.skim);
+        if (gradeA !== gradeB) return gradeB - gradeA;
+
+        return (a.nama || '').localeCompare(b.nama || '');
+      });
+
+      const rawPtjList = [...new Set(staffData.map(s => s.ptj).filter(p => p && p !== '-'))].sort();
+      const prnPtjMatch = rawPtjList.find(p => p.toUpperCase().includes('PRN - PAHANG'));
+      const otherPtjList = rawPtjList.filter(p => p !== prnPtjMatch);
+      const uniquePtj = ['Semua'];
+      if (prnPtjMatch) uniquePtj.push(prnPtjMatch);
+      uniquePtj.push(...otherPtjList);
+
+      const prioritySkims = ['N', 'G', 'W'];
+      const bottomSkims = ['J', 'H'];
+      const allDetectedSkims = [...new Set(staffData.map(s => s.skim.replace(/[0-9]/g, '').trim().toUpperCase()).filter(s => s && s !== '-'))];
+      const presentPrioritySkims = prioritySkims.filter(s => allDetectedSkims.includes(s));
+      const middleSkims = allDetectedSkims.filter(s => !prioritySkims.includes(s) && !bottomSkims.includes(s)).sort();
+      const presentBottomSkims = bottomSkims.filter(s => allDetectedSkims.includes(s));
+      const uniqueSkim = ['Semua', ...presentPrioritySkims, ...middleSkims, ...presentBottomSkims];
 
       const totalStaff = filteredStaff.length;
       const maleStaff = filteredStaff.filter(s => s.jantina.toUpperCase().startsWith('L')).length;
@@ -299,89 +344,280 @@
       const retiringSoon = filteredStaff.filter(s => s.tarikh_bersara.includes('2027')).length;
       const totalPtjCount = new Set(filteredStaff.map(s => s.ptj).filter(p => p && p !== '-')).size;
 
+      // Pengiraan Taburan Statistik
+      const ptjDistribution = useMemo(() => {
+        const counts = {};
+        filteredStaff.forEach(s => {
+          const ptjName = s.ptj && s.ptj !== '-' ? s.ptj.replace(/PEJABAT RISDA DAERAH|PEJABAT PRD -|PEJABAT/gi, '').trim() : 'Lain-lain';
+          counts[ptjName] = (counts[ptjName] || 0) + 1;
+        });
+        return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+      }, [filteredStaff]);
+
+      const maxPtjCount = ptjDistribution.length > 0 ? ptjDistribution[0].count : 1;
+
+      const skimGroupDistribution = useMemo(() => {
+        const counts = {};
+        filteredStaff.forEach(s => {
+          const raw = (s.skim || '').trim();
+          const grp = raw.replace(/[0-9]/g, '').trim().toUpperCase() || 'Lain-lain';
+          if (grp && grp !== '-') counts[grp] = (counts[grp] || 0) + 1;
+        });
+        return Object.entries(counts).map(([group, count]) => ({ 
+          group, 
+          count, 
+          percentage: totalStaff > 0 ? ((count / totalStaff) * 100).toFixed(1) : 0 
+        })).sort((a, b) => b.count - a.count);
+      }, [filteredStaff, totalStaff]);
+
+      const ageDistribution = useMemo(() => {
+        const cohorts = { 'Bawah 30 Thn': 0, '31 - 40 Thn': 0, '41 - 50 Thn': 0, '51 Thn Ke Atas': 0 };
+        const currentYear = new Date().getFullYear();
+
+        filteredStaff.forEach(s => {
+          let year = null;
+          if (s.tarikh_lahir && s.tarikh_lahir !== '-') {
+            const parts = s.tarikh_lahir.split(/[\/\-.]/);
+            if (parts.length === 3) {
+              const yr = parseInt(parts[2], 10);
+              if (yr > 1900 && yr <= currentYear) year = yr;
+            }
+          }
+          if (!year && s.no_kp && s.no_kp.length >= 2) {
+            const twoDigit = parseInt(s.no_kp.substring(0, 2), 10);
+            year = twoDigit > 30 ? 1900 + twoDigit : 2000 + twoDigit;
+          }
+
+          if (year) {
+            const age = currentYear - year;
+            if (age < 30) cohorts['Bawah 30 Thn']++;
+            else if (age <= 40) cohorts['31 - 40 Thn']++;
+            else if (age <= 50) cohorts['41 - 50 Thn']++;
+            else cohorts['51 Thn Ke Atas']++;
+          }
+        });
+        return cohorts;
+      }, [filteredStaff]);
+
       return (
         <div className="bg-transparent mb-12">
           <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-blue-900">Dashboard Profiling Kakitangan</h2>
-              <p className="text-gray-600 text-sm">Analisis dan pengurusan maklumat tenaga kerja RISDA Negeri Pahang.</p>
+              <h2 className="text-2xl font-black text-blue-900">Dashboard Profiling Kakitangan</h2>
+              <p className="text-gray-600 text-sm">Analisis dan pengurusan maklumat tenaga kerja RISDA Pahang (Data Langsung Google Sheets).</p>
             </div>
             <button
               onClick={() => setShowAnalytics(!showAnalytics)}
               className="flex items-center px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-900 text-sm font-semibold rounded-lg transition-colors shadow-sm"
             >
-              <Icon name="bar-chart-2" className="w-4 h-4 mr-2" />
+              <IconBarChart2 className="w-4 h-4 mr-2" />
               {showAnalytics ? 'Sembunyikan Analisis Visual' : 'Papar Analisis Visual'}
-              <Icon name={showAnalytics ? "chevron-up" : "chevron-down"} className="w-4 h-4 ml-1.5" />
+              {showAnalytics ? <IconChevronUp className="w-4 h-4 ml-1.5" /> : <IconChevronDown className="w-4 h-4 ml-1.5" />}
             </button>
           </div>
 
           {isLoadingCSV ? (
             <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl shadow-sm border border-gray-200">
-              <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-4 border-blue-900 mb-4"></div>
-              <p className="text-gray-600 font-medium">Sedang memuat turun data kakitangan dari Google Sheets...</p>
+               <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-4 border-blue-900 mb-4"></div>
+               <p className="text-gray-600 font-medium">Sedang memuat turun data kakitangan dari Google Sheets...</p>
             </div>
           ) : (
             <>
-              {/* Kad Ringkasan */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div className="bg-white p-5 rounded-xl border-l-4 border-blue-600 shadow-sm flex items-center justify-between">
+              {/* Kad Ringkasan Eksekutif */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div className="bg-white p-5 rounded-xl border-l-4 border-blue-600 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase">Jumlah Staf</p>
+                    <p className="text-sm font-medium text-gray-500">Jumlah Kakitangan</p>
                     <h3 className="text-3xl font-black text-gray-900">{totalStaff}</h3>
                   </div>
-                  <div className="p-3 bg-blue-50 text-blue-700 rounded-lg"><Icon name="users" className="w-6 h-6" /></div>
+                  <div className="p-3 bg-blue-50 text-blue-700 rounded-lg"><IconUsers className="w-6 h-6" /></div>
                 </div>
-                <div className="bg-white p-5 rounded-xl border-l-4 border-indigo-500 shadow-sm flex items-center justify-between">
+                <div className="bg-white p-5 rounded-xl border-l-4 border-indigo-500 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase">Lelaki / Perempuan</p>
-                    <h3 className="text-xl font-bold text-gray-900">{maleStaff} <span className="text-gray-400 font-normal">/</span> {femaleStaff}</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-sm font-medium text-gray-500">Lelaki / Perempuan</p>
+                    <h3 className="text-xl font-black text-gray-900">{maleStaff} <span className="text-gray-400 text-sm font-normal">/</span> {femaleStaff}</h3>
+                    <p className="text-xs text-gray-400 mt-1">
                       {totalStaff > 0 ? ((maleStaff/totalStaff)*100).toFixed(0) : 0}% L / {totalStaff > 0 ? ((femaleStaff/totalStaff)*100).toFixed(0) : 0}% P
                     </p>
                   </div>
-                  <div className="p-3 bg-indigo-50 text-indigo-700 rounded-lg"><Icon name="user" className="w-6 h-6" /></div>
+                  <div className="p-3 bg-indigo-50 text-indigo-700 rounded-lg"><IconUser className="w-6 h-6" /></div>
                 </div>
                 <div 
                   onClick={() => setShowRetiringOnly(!showRetiringOnly)}
-                  className={`p-5 rounded-xl border-l-4 border-yellow-500 shadow-sm flex items-center justify-between cursor-pointer transition-all ${showRetiringOnly ? 'bg-yellow-50 ring-2 ring-yellow-400' : 'bg-white'}`}
+                  className={`p-5 rounded-xl border-l-4 border-yellow-500 shadow-sm flex items-center justify-between hover:shadow-md transition-all cursor-pointer ${showRetiringOnly ? 'bg-yellow-50 ring-2 ring-yellow-400' : 'bg-white'}`}
+                  title="Klik untuk tapis senarai staf bakal bersara"
                 >
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase">Bakal Bersara (2027)</p>
-                    <h3 className="text-3xl font-black text-gray-900">{retiringSoon}</h3>
-                    <p className="text-xs text-yellow-600 font-semibold mt-0.5">Klik untuk tapis</p>
+                    <p className={`text-sm font-medium ${showRetiringOnly ? 'text-yellow-700' : 'text-gray-500'}`}>Bakal Bersara (1 Tahun)</p>
+                    <h3 className="text-3xl font-black text-gray-900">
+                      {retiringSoon}
+                      {showRetiringOnly && <span className="text-xs text-yellow-600 ml-2 font-normal whitespace-nowrap">(Ditapis)</span>}
+                    </h3>
+                    <p className="text-xs text-yellow-600 mt-1">Klik untuk lihat nama</p>
                   </div>
-                  <div className="p-3 bg-yellow-50 text-yellow-700 rounded-lg"><Icon name="alert-triangle" className="w-6 h-6" /></div>
+                  <div className={`p-3 rounded-lg ${showRetiringOnly ? 'bg-yellow-200 text-yellow-800' : 'bg-yellow-50 text-yellow-700'}`}><IconAlertTriangle className="w-6 h-6" /></div>
                 </div>
-                <div className="bg-white p-5 rounded-xl border-l-4 border-green-500 shadow-sm flex items-center justify-between">
+                <div className="bg-white p-5 rounded-xl border-l-4 border-green-500 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase">Pusat Tanggungjawab</p>
-                    <h3 className="text-3xl font-black text-gray-900">{totalPtjCount} <span className="text-base text-gray-400 font-normal">PT</span></h3>
-                    <p className="text-xs text-gray-400 mt-0.5">Aktif di seluruh Pahang</p>
+                    <p className="text-sm font-medium text-gray-500">Pusat Tanggungjawab</p>
+                    <h3 className="text-3xl font-black text-gray-900">{totalPtjCount} <span className="text-lg text-gray-400 font-normal">PTJ</span></h3>
+                    <p className="text-xs text-gray-400 mt-1">Aktif di seluruh Pahang</p>
                   </div>
-                  <div className="p-3 bg-green-50 text-green-700 rounded-lg"><Icon name="building" className="w-6 h-6" /></div>
+                  <div className="p-3 bg-green-50 text-green-700 rounded-lg"><IconBuilding className="w-6 h-6" /></div>
                 </div>
               </div>
+
+              {/* Seksyen Visualisasi Dinamik */}
+              {showAnalytics && (
+                <div className="space-y-6 mb-8">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Visual 1: Taburan PTJ */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                      <div className="flex items-center justify-between mb-6 border-b pb-3">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2.5 bg-gradient-to-br from-blue-800 to-blue-600 text-white rounded-lg shadow-sm">
+                            <IconBarChart2 className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-black text-gray-900 text-lg">Kepadatan Tenaga Kerja Mengikut PTJ</h3>
+                            <p className="text-xs text-gray-500 font-medium">Kedudukan 8 pusat tanggungjawab tertinggi</p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold px-3 py-1.5 bg-blue-50 text-blue-800 rounded-full border border-blue-100">
+                          {ptjDistribution.length} PTJ Aktif
+                        </span>
+                      </div>
+
+                      <div className="space-y-5">
+                        {ptjDistribution.slice(0, 8).map((item, idx) => {
+                          const percentage = maxPtjCount > 0 ? ((item.count / maxPtjCount) * 100).toFixed(0) : 0;
+                          const realPercentage = totalStaff > 0 ? ((item.count / totalStaff) * 100).toFixed(1) : 0;
+                          const isTop = idx === 0;
+
+                          return (
+                            <div key={idx} className="relative group">
+                              <div className="flex justify-between text-sm font-medium mb-1.5">
+                                <span className={`font-bold truncate max-w-[280px] ${isTop ? 'text-blue-900' : 'text-gray-700'}`}>
+                                  {idx + 1}. {item.name}
+                                </span>
+                                <div className="flex items-baseline space-x-2">
+                                  <span className="text-gray-900 font-black">{item.count} <span className="text-gray-500 font-medium text-xs">staf</span></span>
+                                  <span className="text-gray-400 font-semibold text-xs bg-gray-50 px-1.5 py-0.5 rounded">({realPercentage}%)</span>
+                                </div>
+                              </div>
+                              <div className="w-full bg-gray-100 rounded-full h-3.5 overflow-hidden flex items-center shadow-inner">
+                                <div 
+                                  className={`h-full rounded-full transition-all duration-700 ${
+                                    isTop ? 'bg-gradient-to-r from-blue-900 via-blue-700 to-blue-500' : 'bg-gradient-to-r from-blue-400 to-blue-300'
+                                  }`}
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Visual 2: Taburan Kategori Skim */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col">
+                      <div className="flex items-center space-x-3 mb-6 border-b pb-3">
+                        <div className="p-2.5 bg-gradient-to-br from-yellow-500 to-yellow-400 text-yellow-900 rounded-lg shadow-sm">
+                          <IconPieChart className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-gray-900 text-lg">Kategori Skim</h3>
+                          <p className="text-xs text-gray-500 font-medium">Komposisi bidang tugas</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 flex-grow">
+                        {skimGroupDistribution.map((item, idx) => {
+                          const colors = [
+                            'from-blue-600 to-blue-500', 'from-indigo-600 to-indigo-500', 'from-yellow-500 to-yellow-400', 
+                            'from-green-600 to-green-500', 'from-purple-600 to-purple-500'
+                          ];
+                          const badgeColor = colors[idx % colors.length];
+                          const isSelected = filterSkim === item.group;
+
+                          return (
+                            <div 
+                              key={idx} 
+                              onClick={() => setFilterSkim(filterSkim === item.group ? 'Semua' : item.group)}
+                              className={`relative overflow-hidden flex items-center justify-between p-3.5 rounded-xl transition-all cursor-pointer border ${
+                                isSelected ? 'bg-blue-50 border-blue-400 shadow-md ring-2 ring-blue-100' : 'bg-white border-gray-100 hover:border-blue-200'
+                              }`}
+                            >
+                              {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-600"></div>}
+                              <div className="flex items-center space-x-3 z-10">
+                                <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${badgeColor} text-white flex items-center justify-center font-bold shadow-md`}>
+                                  {item.group}
+                                </div>
+                                <div>
+                                  <span className="font-extrabold text-sm block text-gray-800">Skim {item.group}</span>
+                                  <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
+                                    {item.group === 'G' ? 'Pertanian' : item.group === 'N' ? 'Pentadbiran' : item.group === 'W' ? 'Kewangan' : item.group === 'H' ? 'Teknikal' : 'Lain-lain'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right z-10 flex flex-col items-end">
+                                <span className="font-black text-gray-900 text-lg">{item.count}</span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{item.percentage}%</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Visual 3: Kohort Umur */}
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <div className="flex items-center space-x-2 mb-4 border-b pb-3">
+                      <div className="p-2 bg-green-50 text-green-700 rounded-lg"><IconTrendingUp className="w-5 h-5" /></div>
+                      <div>
+                        <h3 className="font-bold text-gray-900">Analisis Kohort Umur Tenaga Kerja</h3>
+                        <p className="text-xs text-gray-500">Keseimbangan demografi generasi organisasi</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {Object.entries(ageDistribution).map(([label, count], idx) => {
+                        const pct = totalStaff > 0 ? ((count / totalStaff) * 100).toFixed(1) : 0;
+                        return (
+                          <div key={idx} className="p-4 rounded-xl border border-gray-100 bg-gradient-to-b from-gray-50 to-white text-center">
+                            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{label}</p>
+                            <h4 className="text-2xl font-bold text-blue-900 mb-1">{count} <span className="text-xs font-normal text-gray-500">staf</span></h4>
+                            <div className="w-full bg-gray-200 rounded-full h-1.5 my-2">
+                              <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${pct}%` }}></div>
+                            </div>
+                            <span className="text-xs font-semibold text-gray-600">{pct}% jumlah</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Bar Carian & Tapisan */}
               <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="relative w-full md:w-1/3">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"><Icon name="search" className="w-5 h-5" /></span>
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><IconSearch className="w-5 h-5" /></div>
                   <input 
                     type="text" 
                     placeholder="Cari nama atau No. Pekerja..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-900 outline-none text-sm"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-900 outline-none"
                   />
                 </div>
                 <div className="w-full md:w-2/3 flex flex-col sm:flex-row gap-3 items-center">
                   <div className="w-full sm:w-1/2 flex items-center">
-                    <span className="text-gray-400 mr-2 shrink-0"><Icon name="filter" className="w-5 h-5" /></span>
+                    <IconFilter className="text-gray-400 w-5 h-5 mr-2 shrink-0" />
                     <select 
                       value={filterPtj} 
                       onChange={(e) => setFilterPtj(e.target.value)}
-                      className="w-full py-2 px-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-900 outline-none bg-white"
+                      className="w-full py-2.5 px-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-900 outline-none bg-white"
                     >
                       {uniquePtj.map(ptj => (
                         <option key={ptj} value={ptj}>{ptj === 'Semua' ? 'Semua PTJ' : ptj}</option>
@@ -389,11 +625,11 @@
                     </select>
                   </div>
                   <div className="w-full sm:w-1/2 flex items-center">
-                    <span className="text-gray-400 mr-2 shrink-0"><Icon name="briefcase" className="w-5 h-5" /></span>
+                    <IconBriefcase className="text-gray-400 w-5 h-5 mr-2 shrink-0" />
                     <select 
                       value={filterSkim} 
                       onChange={(e) => setFilterSkim(e.target.value)}
-                      className="w-full py-2 px-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-900 outline-none bg-white"
+                      className="w-full py-2.5 px-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-900 outline-none bg-white"
                     >
                       {uniqueSkim.map(skim => (
                         <option key={skim} value={skim}>{skim === 'Semua' ? 'Semua Skim' : `Skim ${skim}`}</option>
@@ -402,34 +638,32 @@
                   </div>
                   <button
                     onClick={handleResetFilters}
-                    className={`flex items-center justify-center px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 border ${
-                      isFiltered 
-                        ? 'bg-red-50 hover:bg-red-100 text-red-600 border-red-200' 
-                        : 'bg-gray-50 text-gray-500 border-gray-200'
+                    className={`flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-semibold transition-all border shrink-0 ${
+                      isFiltered ? 'bg-red-50 text-red-600 border-red-200' : 'bg-gray-50 text-gray-500 border-gray-200'
                     }`}
                   >
-                    <Icon name="rotate-ccw" className="w-3.5 h-3.5 mr-1" /> Set Semula
+                    <IconRotateCcw className="w-4 h-4 mr-1.5" /> Set Semula
                   </button>
                 </div>
               </div>
 
               {/* Jadual Kakitangan */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto max-h-[550px]">
+                <div className="overflow-x-auto max-h-[600px]">
                   <table className="w-full text-left border-collapse">
-                    <thead className="sticky top-0 z-10 bg-blue-50 text-blue-900 text-xs uppercase font-bold border-b border-gray-200">
-                      <tr>
-                        <th className="p-3.5">Profil</th>
-                        <th className="p-3.5">Nama & No. Pekerja</th>
-                        <th className="p-3.5">Jawatan / Gred</th>
-                        <th className="p-3.5">Pusat Tanggungjawab</th>
-                        <th className="p-3.5 text-center">Tindakan</th>
+                    <thead className="sticky top-0 z-10 bg-blue-50 shadow-sm">
+                      <tr className="text-blue-900 text-sm border-b border-gray-200">
+                        <th className="p-4 font-semibold">Profil</th>
+                        <th className="p-4 font-semibold">Nama & No. Pekerja</th>
+                        <th className="p-4 font-semibold">Jawatan / Gred</th>
+                        <th className="p-4 font-semibold">Pusat Tanggungjawab</th>
+                        <th className="p-4 font-semibold text-center">Tindakan</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 text-sm">
+                    <tbody className="divide-y divide-gray-100">
                       {filteredStaff.length > 0 ? filteredStaff.map((staff) => (
-                        <tr key={staff.id} className="hover:bg-blue-50/50 transition-colors">
-                          <td className="p-3.5">
+                        <tr key={staff.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="p-4">
                             <img 
                               src={staff.gambar} 
                               alt={staff.nama} 
@@ -437,24 +671,24 @@
                                 e.currentTarget.onerror = null;
                                 e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(staff.nama)}&background=1e3a8a&color=facc15&size=128&bold=true`;
                               }}
-                              className="w-10 h-10 rounded-full object-cover border border-gray-200 shadow-sm" 
+                              className="w-12 h-12 rounded-full object-cover border-2 border-gray-200 shadow-sm" 
                             />
                           </td>
-                          <td className="p-3.5">
-                            <p className="font-bold text-gray-900">{staff.nama}</p>
-                            <p className="text-xs text-gray-500 font-mono">{staff.no_pekerja}</p>
+                          <td className="p-4">
+                            <p className="font-bold text-gray-900 text-sm">{staff.nama}</p>
+                            <p className="text-xs text-gray-500 font-mono mt-0.5">{staff.no_pekerja}</p>
                           </td>
-                          <td className="p-3.5">
-                            <p className="text-gray-800 line-clamp-1">{staff.bahagian}</p>
-                            <span className="inline-block px-2 py-0.5 mt-0.5 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded">{staff.skim}</span>
+                          <td className="p-4">
+                            <p className="text-sm text-gray-800 line-clamp-1">{staff.bahagian}</p>
+                            <span className="inline-block px-2 py-0.5 mt-1 bg-yellow-100 text-yellow-800 text-xs font-bold rounded">{staff.skim}</span>
                           </td>
-                          <td className="p-3.5 text-gray-600 text-xs">{staff.ptj}</td>
-                          <td className="p-3.5 text-center">
+                          <td className="p-4 text-sm text-gray-600">{staff.ptj}</td>
+                          <td className="p-4 text-center">
                             <button 
                               onClick={() => setSelectedStaff(staff)}
-                              className="px-3 py-1 bg-blue-100 hover:bg-blue-900 hover:text-white text-blue-700 text-xs font-semibold rounded-lg transition-colors inline-flex items-center"
+                              className="px-4 py-1.5 bg-blue-100 hover:bg-blue-900 hover:text-white text-blue-700 text-sm font-medium rounded-lg transition-colors inline-flex items-center"
                             >
-                              <Icon name="eye" className="w-3.5 h-3.5 mr-1" /> Lihat
+                              <IconEye className="w-4 h-4 mr-1.5" /> Lihat
                             </button>
                           </td>
                         </tr>
@@ -472,10 +706,10 @@
 
           {/* Modal Profil Terperinci */}
           {selectedStaff && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-gray-200">
-                <div className="sticky top-0 bg-blue-900 text-white p-6 flex justify-between items-start rounded-t-2xl">
-                  <div className="flex items-center space-x-4">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60 backdrop-blur-sm">
+              <div className="bg-gray-50 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-200 relative">
+                <div className="sticky top-0 bg-blue-900 text-white p-6 flex justify-between items-start z-10 rounded-t-2xl shadow-md">
+                  <div className="flex items-center space-x-6">
                     <img 
                       src={selectedStaff.gambar} 
                       alt={selectedStaff.nama} 
@@ -483,44 +717,53 @@
                         e.currentTarget.onerror = null;
                         e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStaff.nama)}&background=1e3a8a&color=facc15&size=128&bold=true`;
                       }}
-                      className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md bg-white" 
+                      className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg bg-white" 
                     />
                     <div>
-                      <h2 className="text-xl font-bold">{selectedStaff.nama}</h2>
-                      <p className="text-blue-200 text-xs font-mono">No. Pekerja: {selectedStaff.no_pekerja}</p>
-                      <span className="inline-block mt-1 bg-yellow-500 text-blue-950 font-bold px-2.5 py-0.5 rounded-full text-xs">
-                        {selectedStaff.bahagian} ({selectedStaff.skim})
-                      </span>
+                      <h2 className="text-2xl font-bold mb-1">{selectedStaff.nama}</h2>
+                      <p className="text-blue-200 font-mono mb-2">No. Pekerja: {selectedStaff.no_pekerja}</p>
+                      <span className="bg-yellow-500 text-blue-900 px-3 py-1 rounded-full text-xs font-bold">{selectedStaff.bahagian} ({selectedStaff.skim})</span>
                     </div>
                   </div>
-                  <button onClick={() => setSelectedStaff(null)} className="p-1.5 bg-blue-800 hover:bg-red-500 rounded-full text-white transition-colors">
-                    <Icon name="x" className="w-5 h-5" />
+                  <button onClick={() => setSelectedStaff(null)} className="p-2 bg-blue-800 hover:bg-red-500 rounded-full transition-colors text-white">
+                    <IconX className="w-5 h-5" />
                   </button>
                 </div>
 
-                <div className="p-6 space-y-6">
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                    <h3 className="font-bold text-blue-900 text-sm mb-3">Maklumat Penempatan & Hubungan</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <div><span className="text-gray-500">Emel:</span> <p className="font-semibold text-gray-800">{selectedStaff.emel}</p></div>
-                      <div><span className="text-gray-500">Jantina:</span> <p className="font-semibold text-gray-800">{selectedStaff.jantina}</p></div>
-                      <div className="sm:col-span-2"><span className="text-gray-500">Pusat Tanggungjawab:</span> <p className="font-bold text-blue-900">{selectedStaff.ptj}</p></div>
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 md:col-span-2">
+                    <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center border-b pb-2"><IconUser className="w-5 h-5 mr-2" /> Maklumat Penempatan</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div><p className="text-gray-500 mb-1">Emel Rasmi</p><p className="font-semibold text-gray-900">{selectedStaff.emel}</p></div>
+                      <div><p className="text-gray-500 mb-1">Jantina</p><p className="font-semibold text-gray-900">{selectedStaff.jantina}</p></div>
+                      <div><p className="text-gray-500 mb-1">Negeri</p><p className="font-semibold text-gray-900">{selectedStaff.negeri}</p></div>
+                      <div className="md:col-span-3 bg-blue-50 p-3 rounded-lg mt-2">
+                        <p className="text-blue-700 text-xs mb-1">Pusat Tanggungjawab (PTJ)</p>
+                        <p className="font-bold text-blue-900">{selectedStaff.ptj}</p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-xs space-y-2">
-                      <h3 className="font-bold text-blue-900 text-sm mb-2">Rekod Perkhidmatan</h3>
-                      <div className="flex justify-between border-b pb-1"><span className="text-gray-500">Lantikan Pertama:</span><span className="font-semibold">{selectedStaff.tarikh_lantikan}</span></div>
-                      <div className="flex justify-between border-b pb-1"><span className="text-gray-500">Pengesahan:</span><span className="font-semibold">{selectedStaff.tarikh_pengesahan}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Tempoh Berkhidmat:</span><span className="font-bold text-green-700">{selectedStaff.tempoh_perkhidmatan}</span></div>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-xs space-y-2">
-                      <h3 className="font-bold text-blue-900 text-sm mb-2">Maklumat Persaraan</h3>
-                      <div className="flex justify-between border-b pb-1"><span className="text-gray-500">Tarikh Lahir:</span><span className="font-semibold">{selectedStaff.tarikh_lahir}</span></div>
-                      <div className="flex justify-between border-b pb-1"><span className="text-gray-500">Pilihan Umur:</span><span className="font-semibold">{selectedStaff.umur_bersara} Tahun</span></div>
-                      <div className="flex justify-between bg-red-50 p-2 rounded text-red-700 font-bold"><span>Tarikh Bersara:</span><span>{selectedStaff.tarikh_bersara}</span></div>
-                    </div>
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center border-b pb-2"><IconBriefcase className="w-5 h-5 mr-2" /> Rekod Perkhidmatan</h3>
+                    <ul className="space-y-3 text-sm">
+                      <li className="flex justify-between border-b pb-2"><span className="text-gray-500">Tarikh Lantikan Pertama</span><span className="font-semibold">{selectedStaff.tarikh_lantikan}</span></li>
+                      <li className="flex justify-between border-b pb-2"><span className="text-gray-500">Tarikh Pengesahan Jawatan</span><span className="font-semibold">{selectedStaff.tarikh_pengesahan}</span></li>
+                      <li className="flex justify-between border-b pb-2"><span className="text-gray-500">Tarikh PT Semasa</span><span className="font-semibold">{selectedStaff.tarikh_pt_sekarang}</span></li>
+                      <li className="flex justify-between pt-1"><span className="text-gray-500">Tempoh Perkhidmatan</span><span className="font-bold text-green-600">{selectedStaff.tempoh_perkhidmatan}</span></li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center border-b pb-2"><IconCalendar className="w-5 h-5 mr-2" /> Maklumat Persaraan</h3>
+                    <ul className="space-y-3 text-sm">
+                      <li className="flex justify-between border-b pb-2"><span className="text-gray-500">Tarikh Lahir</span><span className="font-semibold">{selectedStaff.tarikh_lahir}</span></li>
+                      <li className="flex justify-between border-b pb-2"><span className="text-gray-500">Umur Pilihan Bersara</span><span className="font-semibold">{selectedStaff.umur_bersara} Tahun</span></li>
+                      <li className="flex justify-between pt-1 mt-6 bg-red-50 p-3 rounded-lg border border-red-100">
+                        <span className="text-red-700 font-medium flex items-center"><IconClock className="w-4 h-4 mr-2" /> Tarikh Kuatkuasa Bersara</span>
+                        <span className="font-bold text-red-700">{selectedStaff.tarikh_bersara}</span>
+                      </li>
+                    </ul>
                   </div>
                 </div>
               </div>
