@@ -292,24 +292,103 @@
 
       const [staffData, setStaffData] = useState([]);
       const [isLoadingCSV, setIsLoadingCSV] = useState(true);
+      const [fetchError, setFetchError] = useState(null);
+
+      // Data sandaran teras sekiranya Google Sheets disekat oleh pelayar telefon/CORS
+      const fallbackStaffData = [
+        {
+          id: 1,
+          nama: "ABDUL AZIZ BIN AWANG",
+          no_kp: "671109025015",
+          no_pekerja: "084561",
+          emel: "abdaziz@risda.gov.my",
+          skim: "G54",
+          gred: "54",
+          ptj: "PRN - PAHANG",
+          negeri: "PAHANG",
+          jantina: "Lelaki",
+          bahagian: "PEJABAT PENGARAH RISDA NEGERI PAHANG",
+          tarikh_lantikan: "01/03/1992",
+          tarikh_pt_sekarang: "15/01/2022",
+          tarikh_lahir: "09/11/1967",
+          umur_bersara: "60",
+          tarikh_bersara: "10/11/2027",
+          tempoh_perkhidmatan: "34 Tahun",
+          tarikh_pengesahan: "01/03/1995",
+          gambar: "https://ui-avatars.com/api/?name=Abdul+Aziz+Bin+Awang&background=1e3a8a&color=facc15&size=128&bold=true"
+        },
+        {
+          id: 2,
+          nama: "MUHAMAD ABBAS BIN MOHD ALI",
+          no_kp: "840803065687",
+          no_pekerja: "089668",
+          emel: "abbas@risda.gov.my",
+          skim: "G48",
+          gred: "48",
+          ptj: "PRN - PAHANG",
+          negeri: "PAHANG",
+          jantina: "Lelaki",
+          bahagian: "TIMBALAN PENGARAH NEGERI (PEMBANGUNAN)",
+          tarikh_lantikan: "16/06/2008",
+          tarikh_pt_sekarang: "01/02/2023",
+          tarikh_lahir: "03/08/1984",
+          umur_bersara: "60",
+          tarikh_bersara: "04/08/2044",
+          tempoh_perkhidmatan: "18 Tahun",
+          tarikh_pengesahan: "16/06/2011",
+          gambar: "https://ui-avatars.com/api/?name=Muhamad+Abbas+Bin+Mohd+Ali&background=1e3a8a&color=facc15&size=128&bold=true"
+        },
+        {
+          id: 3,
+          nama: "MOHD REDZUAN BIN ABD RASHID",
+          no_kp: "880518115127",
+          no_pekerja: "123",
+          emel: "mohdredzuan@risda.gov.my",
+          skim: "N41",
+          gred: "41",
+          ptj: "PRN - PAHANG",
+          negeri: "PAHANG",
+          jantina: "Lelaki",
+          bahagian: "PENTADBIRAN & TEKNOLOGI MAKLUMAT",
+          tarikh_lantikan: "02/05/2014",
+          tarikh_pt_sekarang: "01/01/2021",
+          tarikh_lahir: "18/05/1988",
+          umur_bersara: "60",
+          tarikh_bersara: "19/05/2048",
+          tempoh_perkhidmatan: "12 Tahun",
+          tarikh_pengesahan: "02/05/2017",
+          gambar: "https://ui-avatars.com/api/?name=Mohd+Redzuan+Bin+Abd+Rashid&background=1e3a8a&color=facc15&size=128&bold=true"
+        }
+      ];
 
       useEffect(() => {
+        let isMounted = true;
         const fetchGoogleSheetsData = async () => {
           try {
-            const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRBHXzXmWa6an5B7a89MsZp9BvZXUW5rt-cBIyQmgneyhRNIUbXA9hqu9Bc1tl5cLfNDSSckUGEo8wL/pub?gid=0&single=true&output=csv";
-            const response = await fetch(csvUrl);
+            // URL Google Sheets CSV Rasmi dengan nocache timestamp
+            const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRBHXzXmWa6an5B7a89MsZp9BvZXUW5rt-cBIyQmgneyhRNIUbXA9hqu9Bc1tl5cLfNDSSckUGEo8wL/pub?gid=0&single=true&output=csv&t=" + Date.now();
+            
+            // Menggunakan fetch dengan kawalan timeout 8 saat
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+            const response = await fetch(csvUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (!response.ok) throw new Error("Status HTTP " + response.status);
+
             const csvText = await response.text();
             const parsedData = parseCSV(csvText);
 
             if (parsedData.length > 1) {
-              const headers = parsedData[0].map(h => h.trim().toUpperCase());
+              const headers = parsedData[0].map(h => (h || '').toString().trim().toUpperCase());
               
               const mappedData = parsedData.slice(1).map((row, index) => {
                 const getVal = (keywords) => {
                   const keys = Array.isArray(keywords) ? keywords : [keywords];
                   for (let key of keys) {
                     const idx = headers.findIndex(h => h.includes(key));
-                    if (idx !== -1 && row[idx]) return row[idx].trim();
+                    if (idx !== -1 && row[idx]) return row[idx].toString().trim();
                   }
                   return '-';
                 };
@@ -410,16 +489,30 @@
                 };
               }).filter(s => s.nama !== '-' && s.nama !== '');
               
-              setStaffData(mappedData);
+              if (isMounted && mappedData.length > 0) {
+                setStaffData(mappedData);
+              }
+            } else {
+              throw new Error("Format data Google Sheets kosong");
             }
-            setIsLoadingCSV(false);
           } catch (error) {
-            console.error("Gagal muat turun CSV:", error);
-            setIsLoadingCSV(false);
+            console.warn("Gagal memuat turun data langsung Google Sheets, mengaktifkan mod sandaran:", error);
+            if (isMounted) {
+              setStaffData(fallbackStaffData);
+              setFetchError("Data langsung Google Sheets gagal dicapai. Memaparkan rekod sandaran.");
+            }
+          } finally {
+            if (isMounted) {
+              setIsLoadingCSV(false);
+            }
           }
         };
 
         fetchGoogleSheetsData();
+
+        return () => {
+          isMounted = false;
+        };
       }, []);
 
       const handleResetFilters = () => {
@@ -555,10 +648,21 @@
           {isLoadingCSV ? (
             <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl shadow-sm border border-gray-200">
                <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-4 border-blue-900 mb-4"></div>
-               <p className="text-gray-600 font-medium">Sedang memuat turun data kakitangan dari Google Sheets...</p>
+               <p className="text-gray-600 font-medium">Sedang memuat turun data kakitangan...</p>
             </div>
           ) : (
             <>
+              {fetchError && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs flex items-center justify-between">
+                  <span>ℹ️ {fetchError}</span>
+                  <button 
+                    onClick={() => { setIsLoadingCSV(true); setFetchError(null); }}
+                    className="underline font-bold text-amber-900 ml-2"
+                  >
+                    Cuba Semula
+                  </button>
+                </div>
+              )}
               {/* Kad Ringkasan Eksekutif */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                 <div className="bg-white p-5 rounded-xl border-l-4 border-blue-600 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
