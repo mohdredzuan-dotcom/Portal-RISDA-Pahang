@@ -17,8 +17,28 @@
   
   <!-- Pintasan tetapan awal Babel untuk mematikan amaran 500KB compact limit -->
   <script>
+    // Pintas dan tapis amaran saiz 500KB Babel pada konsol pelayar
+    (function() {
+      const origWarn = console.warn;
+      const origError = console.error;
+      const filterBabelMsg = function(args) {
+        if (!args || !args[0]) return false;
+        const msg = String(args[0]);
+        return msg.includes('exceeds the max of 500KB') || msg.includes('deoptimised the styling');
+      };
+
+      console.warn = function(...args) {
+        if (filterBabelMsg(args)) return;
+        origWarn.apply(console, args);
+      };
+
+      console.error = function(...args) {
+        if (filterBabelMsg(args)) return;
+        origError.apply(console, args);
+      };
+    })();
+
     if (window.Babel) {
-      // Nyahaktifkan amaran 500KB pada tahap penjana kod Babel
       if (window.Babel.setOptions) {
         window.Babel.setOptions({ compact: false, minified: false });
       }
@@ -30,7 +50,6 @@
         opts.retainLines = true;
         return origTransform.call(this, code, opts);
       };
-      // Nyahaktifkan amaran pada tahap pemprosesan script tags
       if (window.Babel.transformScriptTags) {
         var origTransformScriptTags = window.Babel.transformScriptTags;
         window.Babel.transformScriptTags = function(scripts) {
@@ -71,7 +90,7 @@
     const LOGO_GOLD_URL = `https://lh3.googleusercontent.com/d/${LOGO_GOLD_DRIVE_ID}`;
     const LOGO_SECOND_URL = `https://lh3.googleusercontent.com/d/${LOGO_SECOND_DRIVE_ID}`;
 
-    // --- IKON-IKON VEKTOR SVG DALAMAN (BEBAS DARI MASALAH MODUL / DEPENDENSI) ---
+    // --- IKON-IKON VEKTOR SVG DALAMAN ---
     const IconUsers = ({ className = "w-5 h-5" }) => (
       <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
     );
@@ -225,14 +244,12 @@
           </textPath>
         </text>
 
-        {/* Tiga Helai Daun Getah */}
         <g fill="url(#goldGrad)">
           <path d="M 250 8 C 220 50 205 105 250 160 C 295 105 280 50 250 8 Z" />
           <path d="M 148 100 C 145 130 185 180 238 188 C 230 145 185 105 148 100 Z" />
           <path d="M 352 100 C 355 130 315 180 262 188 C 270 145 315 105 352 100 Z" />
         </g>
 
-        {/* Urat Daun */}
         <g stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round">
           <line x1="250" y1="25" x2="250" y2="155" />
           <line x1="250" y1="55" x2="232" y2="40" /><line x1="250" y1="55" x2="268" y2="40" />
@@ -242,15 +259,12 @@
           <line x1="342" y1="106" x2="266" y2="182" />
         </g>
 
-        {/* Perisai Emas Utama */}
         <path d="M 68 185 C 92 375 408 375 432 185 C 375 228 305 246 250 246 C 195 246 125 228 68 185 Z" fill="url(#goldGrad)" />
         <path d="M 72 178 C 96 368 404 368 428 178" stroke="url(#goldGrad)" strokeWidth="10" fill="none" />
 
-        {/* Cawan Getah */}
         <path d="M 232 254 L 268 254 L 260 310 L 240 310 Z" fill="url(#goldLight)" />
         <path d="M 198 302 Q 212 342 250 342 Q 288 342 302 302 Q 268 322 250 322 Q 232 322 198 302 Z" fill="#FFFFFF" />
 
-        {/* Huruf RISDA */}
         <g fill="#FFFFFF">
           <path d="M 172 388 L 152 380 L 168 338 Q 186 332 196 344 Q 202 355 190 366 L 202 396 L 186 392 L 178 368 L 170 372 Z M 168 358 L 178 354 Q 184 350 180 344 Q 176 340 170 344 Z" />
           <path d="M 207 337 L 222 340 L 210 398 L 195 395 Z" />
@@ -281,7 +295,7 @@
       return arr;
     };
 
-    // --- KOMPONEN DASHBOARD SUMBER MANUSIA (HR) LENGKAP DENGAN VISUALISASI ---
+    // --- KOMPONEN DASHBOARD SUMBER MANUSIA (HR) ---
     const DashboardHR = () => {
       const [searchQuery, setSearchQuery] = useState('');
       const [filterPtj, setFilterPtj] = useState('Semua');
@@ -289,75 +303,21 @@
       const [selectedStaff, setSelectedStaff] = useState(null);
       const [showRetiringOnly, setShowRetiringOnly] = useState(false);
       const [showAnalytics, setShowAnalytics] = useState(true);
+      const [selectedAgeCohort, setSelectedAgeCohort] = useState(null); // State Interaktif Kohort Umur
 
       const [staffData, setStaffData] = useState([]);
       const [isLoadingCSV, setIsLoadingCSV] = useState(true);
       const [fetchError, setFetchError] = useState(null);
 
-      // Data sandaran teras sekiranya Google Sheets disekat oleh pelayar telefon/CORS
       const fallbackStaffData = [
         {
-          id: 1,
-          nama: "ABDUL AZIZ BIN AWANG",
-          no_kp: "671109025015",
-          no_pekerja: "084561",
-          emel: "abdaziz@risda.gov.my",
-          skim: "G54",
-          gred: "54",
-          ptj: "PRN - PAHANG",
-          negeri: "PAHANG",
-          jantina: "Lelaki",
-          bahagian: "PEJABAT PENGARAH RISDA NEGERI PAHANG",
-          tarikh_lantikan: "01/03/1992",
-          tarikh_pt_sekarang: "15/01/2022",
-          tarikh_lahir: "09/11/1967",
-          umur_bersara: "60",
-          tarikh_bersara: "10/11/2027",
-          tempoh_perkhidmatan: "34 Tahun",
-          tarikh_pengesahan: "01/03/1995",
-          gambar: "https://ui-avatars.com/api/?name=Abdul+Aziz+Bin+Awang&background=1e3a8a&color=facc15&size=128&bold=true"
+          id: 1, nama: "ABDUL AZIZ BIN AWANG", no_kp: "671109025015", no_pekerja: "084561", emel: "abdaziz@risda.gov.my", skim: "G54", gred: "54", ptj: "PRN - PAHANG", negeri: "PAHANG", jantina: "Lelaki", bahagian: "PEJABAT PENGARAH RISDA NEGERI PAHANG", tarikh_lantikan: "01/03/1992", tarikh_pt_sekarang: "15/01/2022", tarikh_lahir: "09/11/1967", umur_bersara: "60", tarikh_bersara: "10/11/2027", tempoh_perkhidmatan: "34 Tahun", tarikh_pengesahan: "01/03/1995", gambar: "https://ui-avatars.com/api/?name=Abdul+Aziz+Bin+Awang&background=1e3a8a&color=facc15&size=128&bold=true"
         },
         {
-          id: 2,
-          nama: "MUHAMAD ABBAS BIN MOHD ALI",
-          no_kp: "840803065687",
-          no_pekerja: "089668",
-          emel: "abbas@risda.gov.my",
-          skim: "G48",
-          gred: "48",
-          ptj: "PRN - PAHANG",
-          negeri: "PAHANG",
-          jantina: "Lelaki",
-          bahagian: "TIMBALAN PENGARAH NEGERI (PEMBANGUNAN)",
-          tarikh_lantikan: "16/06/2008",
-          tarikh_pt_sekarang: "01/02/2023",
-          tarikh_lahir: "03/08/1984",
-          umur_bersara: "60",
-          tarikh_bersara: "04/08/2044",
-          tempoh_perkhidmatan: "18 Tahun",
-          tarikh_pengesahan: "16/06/2011",
-          gambar: "https://ui-avatars.com/api/?name=Muhamad+Abbas+Bin+Mohd+Ali&background=1e3a8a&color=facc15&size=128&bold=true"
+          id: 2, nama: "MUHAMAD ABBAS BIN MOHD ALI", no_kp: "840803065687", no_pekerja: "089668", emel: "abbas@risda.gov.my", skim: "G48", gred: "48", ptj: "PRN - PAHANG", negeri: "PAHANG", jantina: "Lelaki", bahagian: "TIMBALAN PENGARAH NEGERI (PEMBANGUNAN)", tarikh_lantikan: "16/06/2008", tarikh_pt_sekarang: "01/02/2023", tarikh_lahir: "03/08/1984", umur_bersara: "60", tarikh_bersara: "04/08/2044", tempoh_perkhidmatan: "18 Tahun", tarikh_pengesahan: "16/06/2011", gambar: "https://ui-avatars.com/api/?name=Muhamad+Abbas+Bin+Mohd+Ali&background=1e3a8a&color=facc15&size=128&bold=true"
         },
         {
-          id: 3,
-          nama: "MOHD REDZUAN BIN ABD RASHID",
-          no_kp: "880518115127",
-          no_pekerja: "123",
-          emel: "mohdredzuan@risda.gov.my",
-          skim: "N41",
-          gred: "41",
-          ptj: "PRN - PAHANG",
-          negeri: "PAHANG",
-          jantina: "Lelaki",
-          bahagian: "PENTADBIRAN & TEKNOLOGI MAKLUMAT",
-          tarikh_lantikan: "02/05/2014",
-          tarikh_pt_sekarang: "01/01/2021",
-          tarikh_lahir: "18/05/1988",
-          umur_bersara: "60",
-          tarikh_bersara: "19/05/2048",
-          tempoh_perkhidmatan: "12 Tahun",
-          tarikh_pengesahan: "02/05/2017",
-          gambar: "https://ui-avatars.com/api/?name=Mohd+Redzuan+Bin+Abd+Rashid&background=1e3a8a&color=facc15&size=128&bold=true"
+          id: 3, nama: "MOHD REDZUAN BIN ABD RASHID", no_kp: "880518115127", no_pekerja: "123", emel: "mohdredzuan@risda.gov.my", skim: "N41", gred: "41", ptj: "PRN - PAHANG", negeri: "PAHANG", jantina: "Lelaki", bahagian: "PENTADBIRAN & TEKNOLOGI MAKLUMAT", tarikh_lantikan: "02/05/2014", tarikh_pt_sekarang: "01/01/2021", tarikh_lahir: "18/05/1988", umur_bersara: "60", tarikh_bersara: "19/05/2048", tempoh_perkhidmatan: "12 Tahun", tarikh_pengesahan: "02/05/2017", gambar: "https://ui-avatars.com/api/?name=Mohd+Redzuan+Bin+Abd+Rashid&background=1e3a8a&color=facc15&size=128&bold=true"
         }
       ];
 
@@ -365,10 +325,8 @@
         let isMounted = true;
         const fetchGoogleSheetsData = async () => {
           try {
-            // URL Google Sheets CSV Rasmi dengan nocache timestamp
             const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRBHXzXmWa6an5B7a89MsZp9BvZXUW5rt-cBIyQmgneyhRNIUbXA9hqu9Bc1tl5cLfNDSSckUGEo8wL/pub?gid=0&single=true&output=csv&t=" + Date.now();
             
-            // Menggunakan fetch dengan kawalan timeout 8 saat
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 8000);
 
@@ -520,9 +478,10 @@
         setFilterPtj('Semua');
         setFilterSkim('Semua');
         setShowRetiringOnly(false);
+        setSelectedAgeCohort(null);
       };
 
-      const isFiltered = searchQuery !== '' || filterPtj !== 'Semua' || filterSkim !== 'Semua' || showRetiringOnly;
+      const isFiltered = searchQuery !== '' || filterPtj !== 'Semua' || filterSkim !== 'Semua' || showRetiringOnly || selectedAgeCohort !== null;
 
       const filteredStaff = staffData.filter(s => {
         const matchName = s.nama.toLowerCase().includes(searchQuery.toLowerCase()) || s.no_pekerja.includes(searchQuery);
@@ -567,27 +526,62 @@
       const presentBottomSkims = bottomSkims.filter(s => allDetectedSkims.includes(s));
       const uniqueSkim = ['Semua', ...presentPrioritySkims, ...middleSkims, ...presentBottomSkims];
 
-      const totalStaff = filteredStaff.length;
-      const maleStaff = filteredStaff.filter(s => s.jantina.toUpperCase().startsWith('L')).length;
-      const femaleStaff = filteredStaff.filter(s => s.jantina.toUpperCase().startsWith('P')).length;
-      const retiringSoon = filteredStaff.filter(s => s.tarikh_bersara.includes('2027')).length;
-      const totalPtjCount = new Set(filteredStaff.map(s => s.ptj).filter(p => p && p !== '-')).size;
+      const currentYear = new Date().getFullYear();
 
-      // Pengiraan Taburan Statistik
+      // Fungsi Klasifikasi Umur
+      const getAgeInfo = (s, refYear) => {
+        let year = null;
+        if (s.tarikh_lahir && s.tarikh_lahir !== '-') {
+          const parts = s.tarikh_lahir.split(/[\/\-.]/);
+          if (parts.length === 3) {
+            const yr = parseInt(parts[2], 10);
+            if (yr > 1900 && yr <= refYear) year = yr;
+          }
+        }
+        if (!year && s.no_kp && s.no_kp.length >= 2) {
+          const twoDigit = parseInt(s.no_kp.substring(0, 2), 10);
+          year = twoDigit > 30 ? 1900 + twoDigit : 2000 + twoDigit;
+        }
+        if (year) {
+          const age = refYear - year;
+          if (age <= 30) return 'Bawah 30 Thn';
+          if (age >= 31 && age <= 40) return '31 - 40 Thn';
+          if (age >= 41 && age <= 50) return '41 - 50 Thn';
+          return '51 Thn Ke Atas';
+        }
+        return null;
+      };
+
+      // Menjana Data Khusus untuk Kohort Terpilih
+      const cohortStaffList = useMemo(() => {
+        if (!selectedAgeCohort) return [];
+        return filteredStaff.filter(s => getAgeInfo(s, currentYear) === selectedAgeCohort);
+      }, [filteredStaff, selectedAgeCohort, currentYear]);
+
+      // Data Dinamik Untuk Carta: Jika cohort dipilih, carta tunjuk staf dlm cohort sahaja
+      const activeDataForCharts = selectedAgeCohort ? cohortStaffList : filteredStaff;
+      const activeTotalStaff = activeDataForCharts.length;
+
+      // Statistik Utama (Guna activeDataForCharts agar interaktif)
+      const maleStaff = activeDataForCharts.filter(s => s.jantina.toUpperCase().startsWith('L')).length;
+      const femaleStaff = activeDataForCharts.filter(s => s.jantina.toUpperCase().startsWith('P')).length;
+      const retiringSoon = activeDataForCharts.filter(s => s.tarikh_bersara.includes('2027')).length;
+      const totalPtjCount = new Set(activeDataForCharts.map(s => s.ptj).filter(p => p && p !== '-')).size;
+
       const ptjDistribution = useMemo(() => {
         const counts = {};
-        filteredStaff.forEach(s => {
+        activeDataForCharts.forEach(s => {
           const ptjName = s.ptj && s.ptj !== '-' ? s.ptj.replace(/PEJABAT RISDA DAERAH|PEJABAT PRD -|PEJABAT/gi, '').trim() : 'Lain-lain';
           counts[ptjName] = (counts[ptjName] || 0) + 1;
         });
         return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-      }, [filteredStaff]);
+      }, [activeDataForCharts]);
 
       const maxPtjCount = ptjDistribution.length > 0 ? ptjDistribution[0].count : 1;
 
       const skimGroupDistribution = useMemo(() => {
         const counts = {};
-        filteredStaff.forEach(s => {
+        activeDataForCharts.forEach(s => {
           const raw = (s.skim || '').trim();
           const grp = raw.replace(/[0-9]/g, '').trim().toUpperCase() || 'Lain-lain';
           if (grp && grp !== '-') counts[grp] = (counts[grp] || 0) + 1;
@@ -595,38 +589,21 @@
         return Object.entries(counts).map(([group, count]) => ({ 
           group, 
           count, 
-          percentage: totalStaff > 0 ? ((count / totalStaff) * 100).toFixed(1) : 0 
+          percentage: activeTotalStaff > 0 ? ((count / activeTotalStaff) * 100).toFixed(1) : 0 
         })).sort((a, b) => b.count - a.count);
-      }, [filteredStaff, totalStaff]);
+      }, [activeDataForCharts, activeTotalStaff]);
 
+      // Taburan Umur kekal ambil dari filteredStaff asal supaya kad umur tidak hilang nombor
       const ageDistribution = useMemo(() => {
         const cohorts = { 'Bawah 30 Thn': 0, '31 - 40 Thn': 0, '41 - 50 Thn': 0, '51 Thn Ke Atas': 0 };
-        const currentYear = new Date().getFullYear();
-
         filteredStaff.forEach(s => {
-          let year = null;
-          if (s.tarikh_lahir && s.tarikh_lahir !== '-') {
-            const parts = s.tarikh_lahir.split(/[\/\-.]/);
-            if (parts.length === 3) {
-              const yr = parseInt(parts[2], 10);
-              if (yr > 1900 && yr <= currentYear) year = yr;
-            }
-          }
-          if (!year && s.no_kp && s.no_kp.length >= 2) {
-            const twoDigit = parseInt(s.no_kp.substring(0, 2), 10);
-            year = twoDigit > 30 ? 1900 + twoDigit : 2000 + twoDigit;
-          }
-
-          if (year) {
-            const age = currentYear - year;
-            if (age < 30) cohorts['Bawah 30 Thn']++;
-            else if (age <= 40) cohorts['31 - 40 Thn']++;
-            else if (age <= 50) cohorts['41 - 50 Thn']++;
-            else cohorts['51 Thn Ke Atas']++;
+          const cohort = getAgeInfo(s, currentYear);
+          if (cohort && cohorts[cohort] !== undefined) {
+            cohorts[cohort]++;
           }
         });
         return cohorts;
-      }, [filteredStaff]);
+      }, [filteredStaff, currentYear]);
 
       return (
         <div className="bg-transparent mb-12">
@@ -668,7 +645,7 @@
                 <div className="bg-white p-5 rounded-xl border-l-4 border-blue-600 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
                   <div>
                     <p className="text-sm font-medium text-gray-500">Jumlah Kakitangan</p>
-                    <h3 className="text-3xl font-black text-gray-900">{totalStaff}</h3>
+                    <h3 className="text-3xl font-black text-gray-900">{activeTotalStaff}</h3>
                   </div>
                   <div className="p-3 bg-blue-50 text-blue-700 rounded-lg"><IconUsers className="w-6 h-6" /></div>
                 </div>
@@ -677,7 +654,7 @@
                     <p className="text-sm font-medium text-gray-500">Lelaki / Perempuan</p>
                     <h3 className="text-xl font-black text-gray-900">{maleStaff} <span className="text-gray-400 text-sm font-normal">/</span> {femaleStaff}</h3>
                     <p className="text-xs text-gray-400 mt-1">
-                      {totalStaff > 0 ? ((maleStaff/totalStaff)*100).toFixed(0) : 0}% L / {totalStaff > 0 ? ((femaleStaff/totalStaff)*100).toFixed(0) : 0}% P
+                      {activeTotalStaff > 0 ? ((maleStaff/activeTotalStaff)*100).toFixed(0) : 0}% L / {activeTotalStaff > 0 ? ((femaleStaff/activeTotalStaff)*100).toFixed(0) : 0}% P
                     </p>
                   </div>
                   <div className="p-3 bg-indigo-50 text-indigo-700 rounded-lg"><IconUser className="w-6 h-6" /></div>
@@ -731,7 +708,7 @@
                       <div className="space-y-5">
                         {ptjDistribution.slice(0, 8).map((item, idx) => {
                           const percentage = maxPtjCount > 0 ? ((item.count / maxPtjCount) * 100).toFixed(0) : 0;
-                          const realPercentage = totalStaff > 0 ? ((item.count / totalStaff) * 100).toFixed(1) : 0;
+                          const realPercentage = activeTotalStaff > 0 ? ((item.count / activeTotalStaff) * 100).toFixed(1) : 0;
                           const isTop = idx === 0;
 
                           return (
@@ -811,30 +788,98 @@
                     </div>
                   </div>
 
-                  {/* Visual 3: Kohort Umur */}
+                  {/* Visual 3: Kohort Umur Interaktif */}
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <div className="flex items-center space-x-2 mb-4 border-b pb-3">
-                      <div className="p-2 bg-green-50 text-green-700 rounded-lg"><IconTrendingUp className="w-5 h-5" /></div>
-                      <div>
-                        <h3 className="font-bold text-gray-900">Analisis Kohort Umur Tenaga Kerja</h3>
-                        <p className="text-xs text-gray-500">Keseimbangan demografi generasi organisasi</p>
+                    <div className="flex items-center justify-between mb-4 border-b pb-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="p-2 bg-green-50 text-green-700 rounded-lg"><IconTrendingUp className="w-5 h-5" /></div>
+                        <div>
+                          <h3 className="font-bold text-gray-900">Analisis Kohort Umur Tenaga Kerja</h3>
+                          <p className="text-xs text-gray-500">Keseimbangan demografi generasi organisasi <span className="italic">(Boleh diklik)</span></p>
+                        </div>
                       </div>
                     </div>
+                    
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {Object.entries(ageDistribution).map(([label, count], idx) => {
-                        const pct = totalStaff > 0 ? ((count / totalStaff) * 100).toFixed(1) : 0;
+                        const pct = filteredStaff.length > 0 ? ((count / filteredStaff.length) * 100).toFixed(1) : 0;
+                        const isSelected = selectedAgeCohort === label;
                         return (
-                          <div key={idx} className="p-4 rounded-xl border border-gray-100 bg-gradient-to-b from-gray-50 to-white text-center">
-                            <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{label}</p>
-                            <h4 className="text-2xl font-bold text-blue-900 mb-1">{count} <span className="text-xs font-normal text-gray-500">staf</span></h4>
+                          <div 
+                            key={idx} 
+                            onClick={() => setSelectedAgeCohort(isSelected ? null : label)}
+                            className={`p-4 rounded-xl border text-center cursor-pointer transition-all ${
+                              isSelected 
+                                ? 'border-blue-400 bg-blue-50 shadow-md ring-2 ring-blue-200' 
+                                : 'border-gray-200 bg-white hover:border-blue-300 shadow-sm'
+                            }`}
+                          >
+                            <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${isSelected ? 'text-blue-800' : 'text-gray-500'}`}>
+                              {label}
+                            </p>
+                            <h4 className="text-2xl font-bold text-blue-900 mb-1">
+                              {count} <span className="text-xs font-normal text-gray-500">staf</span>
+                            </h4>
                             <div className="w-full bg-gray-200 rounded-full h-1.5 my-2">
-                              <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${pct}%` }}></div>
+                              <div 
+                                className="bg-blue-600 h-1.5 rounded-full transition-all" 
+                                style={{ width: `${pct}%` }}
+                              ></div>
                             </div>
                             <span className="text-xs font-semibold text-gray-600">{pct}% jumlah</span>
                           </div>
                         );
                       })}
                     </div>
+
+                    {/* Senarai Lanjutan yang Terbuka ke Bawah Apabila Diklik */}
+                    {selectedAgeCohort && (
+                      <div className="mt-6 border-t border-gray-100 pt-5 animate-in slide-in-from-top-4 duration-300">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-bold text-gray-900 flex items-center">
+                            Senarai Kakitangan: <span className="text-blue-700 ml-1.5">{selectedAgeCohort.toUpperCase()}</span>
+                            <span className="ml-2 bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full">{cohortStaffList.length} Rekod</span>
+                          </h4>
+                          <button 
+                            onClick={() => setSelectedAgeCohort(null)}
+                            className="flex items-center text-xs font-bold text-gray-500 hover:text-red-600 bg-gray-100 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors border border-gray-200 hover:border-red-200"
+                          >
+                            <IconRotateCcw className="w-3.5 h-3.5 mr-1.5" /> Kembali Asal (Tutup)
+                          </button>
+                        </div>
+                        
+                        {cohortStaffList.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[350px] overflow-y-auto p-1 pr-2 hide-scrollbar">
+                            {cohortStaffList.map(staf => (
+                              <div 
+                                key={staf.id} 
+                                onClick={() => setSelectedStaff(staf)}
+                                className="flex items-center p-3 border border-gray-200 rounded-xl hover:border-blue-400 hover:shadow-md transition-all bg-white cursor-pointer group"
+                                title="Klik untuk lihat profil penuh"
+                              >
+                                <img 
+                                  src={staf.gambar} 
+                                  alt={staf.nama} 
+                                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(staf.nama)}&background=1e3a8a&color=facc15&size=128&bold=true`; }}
+                                  className="w-10 h-10 rounded-full object-cover border border-gray-200 mr-3 group-hover:border-blue-400 transition-colors"
+                                />
+                                <div className="overflow-hidden flex-grow">
+                                  <p className="font-bold text-sm text-gray-900 truncate group-hover:text-blue-800">{staf.nama}</p>
+                                  <p className="text-[11px] text-gray-500 truncate mt-0.5">{staf.bahagian}</p>
+                                </div>
+                                <div className="ml-2 shrink-0 bg-gray-50 px-2 py-1 rounded text-[10px] font-bold text-gray-600 border border-gray-100">
+                                  {staf.skim}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center p-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                            <p className="text-gray-500 text-sm font-medium">Tiada rekod kakitangan dalam lingkungan umur ini.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -901,7 +946,7 @@
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {filteredStaff.length > 0 ? filteredStaff.map((staff) => (
+                      {activeDataForCharts.length > 0 ? activeDataForCharts.map((staff) => (
                         <tr key={staff.id} className="hover:bg-gray-50 transition-colors">
                           <td className="p-4">
                             <img 
@@ -990,7 +1035,56 @@
                       <li className="flex justify-between border-b pb-2"><span className="text-gray-500">Tarikh Lantikan Pertama</span><span className="font-semibold">{selectedStaff.tarikh_lantikan}</span></li>
                       <li className="flex justify-between border-b pb-2"><span className="text-gray-500">Tarikh Pengesahan Jawatan</span><span className="font-semibold">{selectedStaff.tarikh_pengesahan}</span></li>
                       <li className="flex justify-between border-b pb-2"><span className="text-gray-500">Tarikh PT Semasa</span><span className="font-semibold">{selectedStaff.tarikh_pt_sekarang}</span></li>
-                      <li className="flex justify-between pt-1"><span className="text-gray-500">Tempoh Perkhidmatan</span><span className="font-bold text-green-600">{selectedStaff.tempoh_perkhidmatan}</span></li>
+                      {(() => {
+                        let tempohPT = '-';
+                        if (selectedStaff.tarikh_pt_sekarang && selectedStaff.tarikh_pt_sekarang !== '-') {
+                          const parts = selectedStaff.tarikh_pt_sekarang.split(/[\/\-.]/);
+                          let ptDate = null;
+                          
+                          if (parts.length === 3) {
+                            // Semak sama ada tahun berada di belakang (DD-MM-YYYY) atau di depan (YYYY-MM-DD)
+                            if (parts[2].length === 4) {
+                              ptDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                            } else if (parts[0].length === 4) {
+                              ptDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                            }
+                          }
+                          
+                          if (ptDate && !isNaN(ptDate.getTime())) {
+                            const today = new Date();
+                            let years = today.getFullYear() - ptDate.getFullYear();
+                            let months = today.getMonth() - ptDate.getMonth();
+                            let days = today.getDate() - ptDate.getDate();
+
+                            // Jika hari pada bulan ini belum cukup melepasi hari penempatan, tolak 1 bulan
+                            if (days < 0) {
+                              months--;
+                            }
+                            // Jika bulan negatif, tolak 1 tahun dan tambah 12 bulan
+                            if (months < 0) {
+                              years--;
+                              months += 12;
+                            }
+
+                            if (years < 0 || (years === 0 && months === 0)) {
+                              tempohPT = 'Kurang Sebulan';
+                            } else if (years === 0) {
+                              tempohPT = `${months} Bulan`;
+                            } else if (months === 0) {
+                              tempohPT = `${years} Tahun`;
+                            } else {
+                              tempohPT = `${years} Tahun ${months} Bulan`;
+                            }
+                          }
+                        }
+                        return (
+                          <li className="flex justify-between border-b pb-2">
+                            <span className="text-gray-500">Tempoh di PT Terkini</span>
+                            <span className="font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">{tempohPT}</span>
+                          </li>
+                        );
+                      })()}
+                      <li className="flex justify-between pt-1"><span className="text-gray-500">Tempoh Perkhidmatan Keseluruhan</span><span className="font-bold text-green-600">{selectedStaff.tempoh_perkhidmatan}</span></li>
                     </ul>
                   </div>
 
@@ -998,6 +1092,25 @@
                     <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center border-b pb-2"><IconCalendar className="w-5 h-5 mr-2" /> Maklumat Persaraan</h3>
                     <ul className="space-y-3 text-sm">
                       <li className="flex justify-between border-b pb-2"><span className="text-gray-500">Tarikh Lahir</span><span className="font-semibold">{selectedStaff.tarikh_lahir}</span></li>
+                      {(() => {
+                        let umur = '-';
+                        if (selectedStaff.tarikh_lahir && selectedStaff.tarikh_lahir !== '-') {
+                          const parts = selectedStaff.tarikh_lahir.split(/[\/\-.]/);
+                          if (parts.length === 3) {
+                            const birthYear = parseInt(parts[2], 10);
+                            const currentYear = new Date().getFullYear();
+                            if (birthYear > 1900 && birthYear <= currentYear) {
+                              umur = currentYear - birthYear;
+                            }
+                          }
+                        }
+                        return (
+                          <li className="flex justify-between border-b pb-2">
+                            <span className="text-gray-500">Umur Semasa</span>
+                            <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{umur !== '-' ? `${umur} Tahun` : '-'}</span>
+                          </li>
+                        );
+                      })()}
                       <li className="flex justify-between border-b pb-2"><span className="text-gray-500">Umur Pilihan Bersara</span><span className="font-semibold">{selectedStaff.umur_bersara} Tahun</span></li>
                       <li className="flex justify-between pt-1 mt-6 bg-red-50 p-3 rounded-lg border border-red-100">
                         <span className="text-red-700 font-medium flex items-center"><IconClock className="w-4 h-4 mr-2" /> Tarikh Kuatkuasa Bersara</span>
@@ -1030,14 +1143,12 @@
       const [loginError, setLoginError] = useState('');
       const [adminTab, setAdminTab] = useState('utama');
 
-      // Senarai Pengguna Sah Eksklusif dari Google Sheets (ID: 1bPoG6HPjkBzuIetcwJWGFAINPOaemHXh4DmuPm-o7bk)
       const allowedUsers = [
         { username: '671109025015', password: '084561', nama: 'ABDUL AZIZ BIN AWANG' },
         { username: '880518115127', password: '123', nama: 'MOHD REDZUAN BIN ABD RASHID' },
         { username: '840803065687', password: '089668', nama: 'MUHAMAD ABBAS BIN MOHD ALI' }
       ];
 
-      // Senarai Rasmi 20 PRS & 3 PRMS
       const stesenList = [
         { daerah: "PRD Bera", nama: "PEJABAT RISDA STESEN BATU PAPAN", tel: "09-2554807", alamat: "JALAN KUALA TRIANG, KG BATU PAPAN, 28300 BERA, PAHANG DARUL MAKMUR." },
         { daerah: "PRD Bera", nama: "PEJABAT RISDA STESEN KERAYONG", tel: "09-2553952", alamat: "NO. 21, RUMAH KEDAI, JALAN JATI, TAMAN JATI, 28200 TRIANG, PAHANG DARUL MAKMUR." },
@@ -1082,36 +1193,11 @@
       ];
 
       const mtrData = [
-        {
-          id: 1, teras: "TERAS 1", tajuk: "Pemerkasaan Pengeluaran Getah Negara", borderWarna: "border-blue-500",
-          impak: "Pengeluaran Getah Capai 1 Juta Tan Metrik",
-          fokus: ["Pengeluaran Getah Negara", "Tanam Semula Getah", "Prasarana Asas"],
-          strategi: ["Meningkatkan Pengeluaran Getah Negara", "Pembangunan Kawasan Tanam Getah", "Penyediaan Kemudahan Asas Tanaman Getah", "Peningkatan Keupayaan Pasukan Kerja"]
-        },
-        {
-          id: 2, teras: "TERAS 2", tajuk: "Kemakmuran Pekebun Kecil", borderWarna: "border-amber-500",
-          impak: "Purata Pendapatan Pekebun Kecil RM4,500 Sebulan Sekeluarga",
-          fokus: ["Pendapatan Pekebun Kecil", "Kemahiran Modal Insan", "Kesejahteraan Sosial"],
-          strategi: ["Pengukuhan Teknik Berkelompok", "Pemerkasaan Aktiviti Agromakanan", "Peningkatan Projek Pembangunan", "Akses Pendidikan Berkualiti", "Pengupayaan Modal Insan", "Perlindungan Takaful Maksimum"]
-        },
-        {
-          id: 3, teras: "TERAS 3", tajuk: "Pengukuhan Keterlihatan Dan Sinergi", borderWarna: "border-yellow-400",
-          impak: "Keterlihatan Kumpulan RISDA Dalam Industri Getah Negara",
-          fokus: ["Persepsi Umum", "Kerjasama Strategik"],
-          strategi: ["Kepelbagaian Liputan Media RISDA Diperingkat Umum", "Memartabatkan Maslahah Ummah Melalui Pelbagai Agensi"]
-        },
-        {
-          id: 4, teras: "TERAS 4", tajuk: "Penguasaan Rantaian Bekalan", borderWarna: "border-emerald-500",
-          impak: "Keuntungan KRH Terkumpul Mencapai RM500 Juta Pada Akhir Tahun 2030",
-          fokus: ["Pendapatan Kumpulan", "Perniagaan Getah Kumpulan"],
-          strategi: ["Meneroka Pasaran Baharu & Mengembangkan Perniagaan Getah", "Pendedahan Dalam Pembuatan Getah Industri Getah"]
-        },
-        {
-          id: 5, teras: "TERAS 5", tajuk: "Organisasi Berprestasi Tinggi", borderWarna: "border-amber-400",
-          impak: "RISDA Agensi Berprestasi Tinggi",
-          fokus: ["Tataskelola dan Akauntabiliti", "Budaya Kerja Berprestasi", "Reformasi Prosedur", "Pemanfaatan Berkesan", "Optimum Sumber", "Transformasi Digital"],
-          strategi: ["Amalan Pembudayaan Nilai Tatakelola Baik (Amalan GRC)", "Pelaksanaan Penilaian Prestasi Melalui KPI & Prestasi Program", "Laksana Reformasi Prosedur Perolehan & Kewangan", "Menyokong Pemerkasaan Data Yang Bersepadu & Inovatif", "Mengoptimumkan Modal Insan Melalui Latihan Efektif", "Transformasi Digital Melalui Pelan Pendigitalan Bersepadu"]
-        }
+        { id: 1, teras: "TERAS 1", tajuk: "Pemerkasaan Pengeluaran Getah Negara", borderWarna: "border-blue-500", impak: "Pengeluaran Getah Capai 1 Juta Tan Metrik", fokus: ["Pengeluaran Getah Negara", "Tanam Semula Getah", "Prasarana Asas"], strategi: ["Meningkatkan Pengeluaran Getah Negara", "Pembangunan Kawasan Tanam Getah", "Penyediaan Kemudahan Asas Tanaman Getah", "Peningkatan Keupayaan Pasukan Kerja"] },
+        { id: 2, teras: "TERAS 2", tajuk: "Kemakmuran Pekebun Kecil", borderWarna: "border-amber-500", impak: "Purata Pendapatan Pekebun Kecil RM4,500 Sebulan Sekeluarga", fokus: ["Pendapatan Pekebun Kecil", "Kemahiran Modal Insan", "Kesejahteraan Sosial"], strategi: ["Pengukuhan Teknik Berkelompok", "Pemerkasaan Aktiviti Agromakanan", "Peningkatan Projek Pembangunan", "Akses Pendidikan Berkualiti", "Pengupayaan Modal Insan", "Perlindungan Takaful Maksimum"] },
+        { id: 3, teras: "TERAS 3", tajuk: "Pengukuhan Keterlihatan Dan Sinergi", borderWarna: "border-yellow-400", impak: "Keterlihatan Kumpulan RISDA Dalam Industri Getah Negara", fokus: ["Persepsi Umum", "Kerjasama Strategik"], strategi: ["Kepelbagaian Liputan Media RISDA Diperingkat Umum", "Memartabatkan Maslahah Ummah Melalui Pelbagai Agensi"] },
+        { id: 4, teras: "TERAS 4", tajuk: "Penguasaan Rantaian Bekalan", borderWarna: "border-emerald-500", impak: "Keuntungan KRH Terkumpul Mencapai RM500 Juta Pada Akhir Tahun 2030", fokus: ["Pendapatan Kumpulan", "Perniagaan Getah Kumpulan"], strategi: ["Meneroka Pasaran Baharu & Mengembangkan Perniagaan Getah", "Pendedahan Dalam Pembuatan Getah Industri Getah"] },
+        { id: 5, teras: "TERAS 5", tajuk: "Organisasi Berprestasi Tinggi", borderWarna: "border-amber-400", impak: "RISDA Agensi Berprestasi Tinggi", fokus: ["Tataskelola dan Akauntabiliti", "Budaya Kerja Berprestasi", "Reformasi Prosedur", "Pemanfaatan Berkesan", "Optimum Sumber", "Transformasi Digital"], strategi: ["Amalan Pembudayaan Nilai Tatakelola Baik (Amalan GRC)", "Pelaksanaan Penilaian Prestasi Melalui KPI & Prestasi Program", "Laksana Reformasi Prosedur Perolehan & Kewangan", "Menyokong Pemerkasaan Data Yang Bersepadu & Inovatif", "Mengoptimumkan Modal Insan Melalui Latihan Efektif", "Transformasi Digital Melalui Pelan Pendigitalan Bersepadu"] }
       ];
 
       const navigateTo = (page) => {
@@ -1140,6 +1226,12 @@
       const handleLogout = () => {
         setIsAdminLoggedIn(false);
         navigateTo('home');
+      };
+
+      // Dinamik Senarai Daerah mengikut Tab (Untuk Dropdown PRMS/PRS)
+      const handleTabLokasiChange = (newTab) => {
+        setLokasiTab(newTab);
+        setFilterStesenDaerah('Semua'); // Reset dropdown sentiasa kembali ke 'Semua' apabila tab bertukar
       };
 
       return (
@@ -1485,7 +1577,7 @@
                     </div>
                     <div className="flex flex-col gap-2 mt-4">
                       <button 
-                        onClick={() => { setLokasiTab('daerah'); setFilterStesenDaerah('Semua'); }}
+                        onClick={() => handleTabLokasiChange('daerah')}
                         className={`w-full flex items-center px-4 py-2.5 border-2 rounded-lg font-bold text-sm transition-all shadow-sm ${
                           lokasiTab === 'daerah' 
                             ? 'border-blue-900 bg-blue-900 text-white shadow-md' 
@@ -1496,7 +1588,7 @@
                         <span>Pejabat Daerah (8 PT)</span>
                       </button>
                       <button 
-                        onClick={() => { setLokasiTab('stesen'); setFilterStesenDaerah('Semua'); }}
+                        onClick={() => handleTabLokasiChange('stesen')}
                         className={`w-full flex items-center px-4 py-2.5 border-2 rounded-lg font-bold text-sm transition-all shadow-sm ${
                           lokasiTab === 'stesen' 
                             ? 'border-teal-700 bg-teal-700 text-white shadow-md' 
@@ -1507,7 +1599,7 @@
                         <span>Pejabat Stesen (20 PRS)</span>
                       </button>
                       <button 
-                        onClick={() => { setLokasiTab('mini'); setFilterStesenDaerah('Semua'); }}
+                        onClick={() => handleTabLokasiChange('mini')}
                         className={`w-full flex items-center px-4 py-2.5 border-2 rounded-lg font-bold text-sm transition-all shadow-sm ${
                           lokasiTab === 'mini' 
                             ? 'border-orange-600 bg-orange-600 text-white shadow-md' 
@@ -1547,9 +1639,11 @@
                 )}
 
                 {(lokasiTab === 'stesen' || lokasiTab === 'mini') && (() => {
+                  // Tapis stesen ikut kategori mini / biasa
                   const currentCategoryStations = stesenList.filter(s => 
                     lokasiTab === 'mini' ? s.nama.toLowerCase().includes('mini') : !s.nama.toLowerCase().includes('mini')
                   );
+                  // Hasilkan senarai daerah yang AKTIF untuk kategori yang dipilih
                   const availableDaerahList = [...new Set(currentCategoryStations.map(s => s.daerah))].sort();
 
                   return (
@@ -1623,7 +1717,7 @@
                             value={icInput}
                             onChange={(e) => setIcInput(e.target.value)}
                             className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-900 outline-none"
-                            placeholder="No. KP tanpa (-)"
+                            placeholder="Contoh: No. KP tanpa (-)"
                             required
                           />
                         </div>
