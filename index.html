@@ -167,7 +167,12 @@ const DashboardHR = () => {
         
         if (parsedData.length > 1) {
           const headers = parsedData[0].map(h => h.trim().toUpperCase());
-          const currentYear = new Date().getFullYear(); // Dinamik mengikut tahun semasa
+          
+          // Get Exact Current Date Data
+          const currentDateObj = new Date();
+          const currentYear = currentDateObj.getFullYear();
+          const currentMonth = currentDateObj.getMonth() + 1;
+          const currentDay = currentDateObj.getDate();
           
           const mappedData = parsedData.slice(1).map((row, index) => {
             const getVal = (keywords) => {
@@ -192,15 +197,23 @@ const DashboardHR = () => {
               tarikhLahir = `${dd}/${mm}/${yearPrefix}${yy}`;
             }
 
-            // Umur Semasa (Berasaskan tahun dinamik)
+            // Umur Semasa Dinamik (Matematik Terperinci)
             let birthYear = null;
             let umurSemasa = null;
             let ageCohortStr = 'Lain-lain';
             if (tarikhLahir !== '-') {
               const parts = tarikhLahir.split(/[\/\-.]/);
               if (parts.length === 3) {
-                birthYear = parseInt(parts[2], 10);
-                if (birthYear > 1900 && birthYear <= currentYear) umurSemasa = currentYear - birthYear;
+                birthYear = parseInt(parts[2].length === 4 ? parts[2] : (parseInt(parts[2]) > 30 ? '19'+parts[2] : '20'+parts[2]), 10);
+                if (birthYear > 1900 && birthYear <= currentYear) {
+                    umurSemasa = currentYear - birthYear;
+                    // Adjust age if birthday hasn't occurred yet this year
+                    const bMonth = parseInt(parts[1], 10);
+                    const bDay = parseInt(parts[0], 10);
+                    if (currentMonth < bMonth || (currentMonth === bMonth && currentDay < bDay)) {
+                        umurSemasa--;
+                    }
+                }
               }
             }
             if (umurSemasa) {
@@ -227,7 +240,7 @@ const DashboardHR = () => {
             const noPekerja = getVal('NO PEKERJA');
             let rawSkim = getVal('SKIM');
 
-            // Pengiraan Tempoh PT Terkini (Dinamik dengan Kiraan Bulan)
+            // Pengiraan Tempoh PT Terkini (Dinamik dengan Kiraan Bulan & Hari)
             const tarikhPTSemasa = getVal(['DI TEMPATKAN', 'DITEMPATKAN', 'PT SEKARANG']);
             let ptDurationYears = 0;
             let ptDurationStr = '-';
@@ -235,20 +248,26 @@ const DashboardHR = () => {
             if (tarikhPTSemasa && tarikhPTSemasa !== '-') {
               const parts = tarikhPTSemasa.split(/[\/\-.]/);
               if (parts.length === 3) {
-                const ptYear = parseInt(parts[2].length === 4 ? parts[2] : parts[0], 10);
+                const ptYear = parseInt(parts[2].length === 4 ? parts[2] : (parseInt(parts[2]) > 30 ? '19'+parts[2] : '20'+parts[2]), 10);
                 const ptMonth = parseInt(parts[1], 10);
-                const currentMonth = new Date().getMonth() + 1;
+                const ptDay = parseInt(parts[0], 10);
                 
                 let yDiff = currentYear - ptYear;
                 let mDiff = currentMonth - ptMonth;
+                let dDiff = currentDay - ptDay;
                 
-                // Tolak 1 tahun jika bulan belum cukup
+                // Adjust if current day is less than placement day
+                if (dDiff < 0) {
+                    mDiff--;
+                }
+                
+                // Adjust if current month is less than placement month
                 if (mDiff < 0) {
                   yDiff--;
                   mDiff += 12;
                 }
                 
-                ptDurationYears = yDiff;
+                ptDurationYears = yDiff + (mDiff / 12); // Float for precise filtering
                 
                 if (yDiff <= 0 && mDiff <= 0) ptDurationStr = 'Kurang Sebulan';
                 else if (yDiff <= 0) ptDurationStr = `${mDiff} Bulan`;
@@ -264,10 +283,10 @@ const DashboardHR = () => {
             if (tarikhLantikanStr && tarikhLantikanStr !== '-') {
               const parts = tarikhLantikanStr.split(/[\/\-.]/);
               if (parts.length === 3) {
-                const lantikanYear = parseInt(parts[2].length === 4 ? parts[2] : parts[0], 10);
+                const lantikanYear = parseInt(parts[2].length === 4 ? parts[2] : (parseInt(parts[2]) > 30 ? '19'+parts[2] : '20'+parts[2]), 10);
                 const lantikanMonth = parseInt(parts[1], 10);
                 let yDiff = currentYear - lantikanYear;
-                let mDiff = (new Date().getMonth() + 1) - lantikanMonth;
+                let mDiff = currentMonth - lantikanMonth;
                 if (mDiff < 0) { yDiff--; mDiff += 12; }
                 totalYears = yDiff;
                 if (yDiff < 0) tempohKeseluruhan = '0 Tahun';
@@ -283,7 +302,7 @@ const DashboardHR = () => {
             // 1. Stagnan > 7 tahun (Merah)
             if (ptDurationYears >= 7) {
               alertLevel = 'red';
-              alertMsgs.push(`Telah berkhidmat ${ptDurationYears} tahun di PT yang sama (Stagnan)`);
+              alertMsgs.push(`Telah berkhidmat ${Math.floor(ptDurationYears)} tahun di PT yang sama (Stagnan)`);
             }
             
             // 2. Bakal bersara < 6 bulan (Merah)
@@ -291,9 +310,9 @@ const DashboardHR = () => {
             if (tarikhBersara && tarikhBersara !== '-') {
               const parts = tarikhBersara.split(/[\/\-.]/);
               if (parts.length === 3) {
-                const retYear = parseInt(parts[2], 10);
+                const retYear = parseInt(parts[2].length === 4 ? parts[2] : '20'+parts[2], 10);
                 const retMonth = parseInt(parts[1], 10);
-                const monthsToRetire = (retYear - currentYear) * 12 + (retMonth - (new Date().getMonth() + 1));
+                const monthsToRetire = (retYear - currentYear) * 12 + (retMonth - currentMonth);
                 if (monthsToRetire > 0 && monthsToRetire <= 6) {
                   alertLevel = 'red';
                   alertMsgs.push(`Bakal bersara dalam masa ${monthsToRetire} bulan`);
@@ -349,18 +368,19 @@ const DashboardHR = () => {
     fetchGoogleSheetsData();
   }, []);
 
-  // Penapisan data berdasarkan carian & input (Tidak termasuk kohort umur)
-  const staffForAgeCharts = staffData.filter(s => {
+  // 1. Data asas yang telah ditapis MELAINKAN kohort umur (Digunakan untuk kad Umur)
+  const baseFilteredStaff = staffData.filter(s => {
     const matchName = s.nama.toLowerCase().includes(searchQuery.toLowerCase()) || s.no_pekerja.includes(searchQuery);
     const matchPtj = filterPtj === 'Semua' ? true : s.ptj === filterPtj;
     const matchSkim = filterSkim === 'Semua' ? true : s.skim.replace(/[0-9]/g, '').trim().toUpperCase() === filterSkim; 
     const matchRetiring = showRetiringOnly ? s.tarikh_bersara.includes('2027') : true;
-    const matchTahunPT = filterTahunPT === '' ? true : s.ptDurationYears >= parseInt(filterTahunPT, 10);
+    const minTahun = parseInt(filterTahunPT, 10);
+    const matchTahunPT = filterTahunPT === '' || isNaN(minTahun) ? true : s.ptDurationYears >= minTahun;
     return matchName && matchPtj && matchSkim && matchRetiring && matchTahunPT;
   });
 
-  // Tapisan mutlak termasuk kohort umur untuk jadual dan graf
-  const filteredStaff = staffForAgeCharts.filter(s => {
+  // 2. Data akhir yang ditapis SEPENUHNYA (termasuk kohort umur)
+  const activeDataForCharts = baseFilteredStaff.filter(s => {
     return filterAgeCohort === 'Semua' ? true : s.ageCohort === filterAgeCohort;
   }).sort((a, b) => {
     const ptjA = a.ptj || '';
@@ -372,6 +392,17 @@ const DashboardHR = () => {
     if (!isPrnA && isPrnB) return 1;
     if (ptjA < ptjB) return -1;
     if (ptjA > ptjB) return 1;
+    
+    // Ekstrak nombor dari skim/gred (Contoh: G9 -> 9, W1 -> 1)
+    const gredA = parseInt((a.skim || '').replace(/\D/g, ''), 10) || 0;
+    const gredB = parseInt((b.skim || '').replace(/\D/g, ''), 10) || 0;
+    
+    // Susun gred dari nombor tertinggi ke terendah (Descending)
+    if (gredA !== gredB) {
+      return gredB - gredA; 
+    }
+    
+    // Jika gred sama, susun mengikut abjad nama
     return (a.nama || '').localeCompare(b.nama || '');
   });
 
@@ -386,48 +417,48 @@ const DashboardHR = () => {
   const allDetectedSkims = [...new Set(staffData.map(s => s.skim.replace(/[0-9]/g, '').trim().toUpperCase()).filter(s => s && s !== '-'))].sort();
   const uniqueSkim = ['Semua', ...allDetectedSkims];
 
-  const totalStaff = filteredStaff.length;
-  const maleStaff = filteredStaff.filter(s => s.jantina.toUpperCase().startsWith('L')).length;
-  const femaleStaff = filteredStaff.filter(s => s.jantina.toUpperCase().startsWith('P')).length;
-  const retiringSoon = filteredStaff.filter(s => s.tarikh_bersara.includes('2027')).length;
-  const totalPtjCount = new Set(filteredStaff.map(s => s.ptj).filter(p => p && p !== '-')).size;
+  const totalStaff = activeDataForCharts.length;
+  const maleStaff = activeDataForCharts.filter(s => s.jantina.toUpperCase().startsWith('L')).length;
+  const femaleStaff = activeDataForCharts.filter(s => s.jantina.toUpperCase().startsWith('P')).length;
+  const retiringSoon = activeDataForCharts.filter(s => s.tarikh_bersara.includes('2027')).length;
+  const totalPtjCount = new Set(activeDataForCharts.map(s => s.ptj).filter(p => p && p !== '-')).size;
 
-  // Graf & Analisis (Berdasarkan filteredStaff supaya interaktif silang)
+  // Graf & Analisis (Dinamik mengikut activeDataForCharts)
   const ptjDistribution = React.useMemo(() => {
     const counts = {};
-    filteredStaff.forEach(s => {
+    activeDataForCharts.forEach(s => {
       const ptjName = s.ptj && s.ptj !== '-' ? s.ptj.replace(/PEJABAT RISDA DAERAH|PEJABAT PRD -|PEJABAT/gi, '').trim() : 'Lain-lain';
       counts[ptjName] = (counts[ptjName] || 0) + 1;
     });
     return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-  }, [filteredStaff]);
+  }, [activeDataForCharts]);
 
   const skimGroupDistribution = React.useMemo(() => {
     const counts = {};
-    filteredStaff.forEach(s => {
+    activeDataForCharts.forEach(s => {
       const group = (s.skim || '').replace(/[0-9]/g, '').trim().toUpperCase() || 'Lain-lain';
       if (group && group !== '-') counts[group] = (counts[group] || 0) + 1;
     });
     return Object.entries(counts).map(([group, count]) => ({ 
       group, count, percentage: totalStaff > 0 ? ((count / totalStaff) * 100).toFixed(1) : 0 
     })).sort((a, b) => b.count - a.count);
-  }, [filteredStaff, totalStaff]);
+  }, [activeDataForCharts, totalStaff]);
 
-  // Taburan Umur kekal menggunakan staffForAgeCharts (supaya kotak lain tidak kosong)
+  // Taburan Umur mengambil kira baseFilteredStaff
   const ageDistribution = React.useMemo(() => {
     const cohorts = { 'Bawah 30 Thn': 0, '31 - 40 Thn': 0, '41 - 50 Thn': 0, '51 Thn Ke Atas': 0 };
-    staffForAgeCharts.forEach(s => { if (cohorts[s.ageCohort] !== undefined) cohorts[s.ageCohort]++; });
+    baseFilteredStaff.forEach(s => { if (cohorts[s.ageCohort] !== undefined) cohorts[s.ageCohort]++; });
     return cohorts;
-  }, [staffForAgeCharts]);
+  }, [baseFilteredStaff]);
 
   // FUNGSI EKSPORT CSV
   const handleExportCSV = () => {
-    if (filteredStaff.length === 0) {
+    if (activeDataForCharts.length === 0) {
       alert("Tiada rekod untuk dieksport berdasarkan tapisan semasa.");
       return;
     }
     const headers = ['Bil', 'Nama', 'No. Pekerja', 'Emel', 'Skim', 'Bahagian', 'Pusat Tanggungjawab', 'Tarikh Lantikan', 'Tempoh di PT Terkini', 'Tarikh Bersara', 'Amaran'];
-    const rows = filteredStaff.map((s, idx) => {
+    const rows = activeDataForCharts.map((s, idx) => {
       return [
         idx + 1,
         `"${s.nama}"`,
@@ -596,21 +627,23 @@ const DashboardHR = () => {
                       <div className="p-2.5 bg-gradient-to-br from-blue-800 to-blue-600 text-white rounded-lg"><BarChart2 className="w-5 h-5" /></div>
                       <div>
                         <h3 className="font-black text-gray-900 text-lg">Bilangan Kakitangan mengikut Pusat Tanggungjawab</h3>
-                        <p className="text-xs text-gray-500 font-medium mt-0.5">Semua {ptjDistribution.length} pusat tanggungjawab aktif</p>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">Kedudukan {ptjDistribution.length > 9 ? 9 : ptjDistribution.length} pusat tanggungjawab tertinggi</p>
                       </div>
                     </div>
+                    <span className="text-xs font-bold bg-blue-50 text-blue-800 px-3 py-1 rounded-full border border-blue-200">{totalPtjCount} PTJ Aktif</span>
                   </div>
                   <div className="space-y-5">
                     {ptjDistribution.slice(0, 9).map((item, idx) => {
                       const percentage = ptjDistribution.length > 0 ? ((item.count / ptjDistribution[0].count) * 100).toFixed(0) : 0;
+                      const globalPct = totalStaff > 0 ? ((item.count / totalStaff) * 100).toFixed(1) : 0;
                       return (
                         <div key={idx} className="relative group cursor-crosshair">
                           <div className="flex justify-between text-sm font-medium mb-1.5">
-                            <span className="font-bold truncate text-gray-700">{idx + 1}. {item.name}</span>
-                            <span className="text-gray-900 font-black">{item.count} <span className="text-gray-500 text-xs font-medium">staf</span></span>
+                            <span className="font-bold truncate text-gray-700 uppercase">{idx + 1}. {item.name}</span>
+                            <span className="text-gray-900 font-black">{item.count} <span className="text-gray-500 text-xs font-medium">staf</span> <span className="text-gray-400 text-xs font-normal ml-1">({globalPct}%)</span></span>
                           </div>
                           <div className="w-full bg-gray-100 rounded-full h-3.5 flex items-center shadow-inner overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-500 transition-all duration-1000" style={{ width: `${percentage}%` }}></div>
+                            <div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-1000" style={{ width: `${percentage}%` }}></div>
                           </div>
                         </div>
                       );
@@ -622,17 +655,28 @@ const DashboardHR = () => {
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col">
                   <div className="flex items-center space-x-3 mb-6 border-b pb-3">
                     <div className="p-2.5 bg-gradient-to-br from-yellow-500 to-yellow-400 text-yellow-900 rounded-lg"><PieChart className="w-5 h-5" /></div>
-                    <div><h3 className="font-black text-gray-900 text-lg">Kategori Skim</h3></div>
+                    <div>
+                        <h3 className="font-black text-gray-900 text-lg">Kategori Skim</h3>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">Komposisi bidang tugas</p>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 gap-3 mt-1 flex-grow">
                     {skimGroupDistribution.map((item, idx) => (
-                      <div key={idx} className="relative overflow-hidden flex items-center justify-between p-3.5 rounded-xl border border-gray-100 bg-white shadow-sm">
+                      <div key={idx} className="relative overflow-hidden flex items-center justify-between p-3.5 rounded-xl border border-gray-100 bg-white shadow-sm hover:border-blue-200 transition-colors">
                         <div className="flex items-center space-x-3 z-10">
-                          <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold">{item.group}</div>
-                          <span className="font-extrabold text-sm text-gray-800">Skim {item.group}</span>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-white shadow-sm ${idx === 0 ? 'bg-blue-600' : idx === 1 ? 'bg-indigo-500' : idx === 2 ? 'bg-yellow-500' : idx === 3 ? 'bg-emerald-500' : 'bg-purple-600'}`}>
+                            {item.group.substring(0,2)}
+                          </div>
+                          <div>
+                            <span className="font-extrabold text-sm text-gray-800 block">Skim {item.group}</span>
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{
+                                item.group === 'G' ? 'PERTANIAN' : item.group === 'N' ? 'PENTADBIRAN' : item.group === 'W' ? 'KEWANGAN' : item.group === 'H' ? 'TEKNIKAL' : 'LAIN-LAIN'
+                            }</span>
+                          </div>
                         </div>
                         <div className="text-right z-10 flex flex-col items-end">
                           <span className="font-black text-gray-900 text-lg">{item.count}</span>
+                          <span className="text-[10px] font-bold text-gray-500">{item.percentage}%</span>
                         </div>
                       </div>
                     ))}
@@ -647,7 +691,7 @@ const DashboardHR = () => {
                     <div className="p-2 bg-green-50 text-green-700 rounded-lg"><TrendingUp className="w-5 h-5" /></div>
                     <div>
                       <h3 className="font-bold text-gray-900">Analisis Kohort Umur Tenaga Kerja</h3>
-                      <p className="text-xs text-gray-500">Klik kotak umur di bawah untuk melihat senarai nama kakitangan yang berkenaan</p>
+                      <p className="text-xs text-gray-500">Keseimbangan demografi generasi organisasi (Boleh diklik)</p>
                     </div>
                   </div>
                 </div>
@@ -655,27 +699,26 @@ const DashboardHR = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {['Bawah 30 Thn', '31 - 40 Thn', '41 - 50 Thn', '51 Thn Ke Atas'].map((label, idx) => {
                     const count = ageDistribution[label] || 0;
-                    const totalRef = staffForAgeCharts.length;
+                    const totalRef = baseFilteredStaff.length;
                     const pct = totalRef > 0 ? ((count / totalRef) * 100).toFixed(1) : 0;
                     const isSelected = filterAgeCohort === label;
                     return (
                       <div 
                         key={idx}
                         onClick={() => setFilterAgeCohort(isSelected ? 'Semua' : label)}
-                        className={`relative p-4 rounded-xl cursor-pointer transition-all duration-300 shadow-sm border-2 ${isSelected ? 'border-blue-500 bg-blue-50 ring-4 ring-blue-100' : 'border-gray-100 bg-white hover:border-blue-300'}`}
+                        className={`relative p-5 rounded-xl cursor-pointer transition-all duration-300 shadow-sm border ${isSelected ? 'border-blue-400 bg-blue-50/50 ring-2 ring-blue-100 scale-[1.02]' : 'border-gray-100 bg-white hover:border-blue-200 hover:shadow-md'} flex flex-col items-center justify-center text-center`}
                       >
                         {isSelected && (
                           <div className="absolute top-2 right-2 flex items-center">
-                            <span className="text-[10px] font-bold text-white bg-blue-500 px-2 py-0.5 rounded-full shadow-sm">Aktif</span>
-                            <span className="text-[10px] font-bold text-red-500 ml-2 hover:underline">✕ Batal</span>
+                            <span className="text-[10px] font-bold text-white bg-blue-500 px-2 py-0.5 rounded-full shadow-sm animate-pulse">Aktif</span>
                           </div>
                         )}
-                        <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${isSelected ? 'text-blue-700' : 'text-gray-500'}`}>{label}</p>
-                        <h4 className={`text-2xl font-black mb-1 ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{count} <span className="text-xs font-medium text-gray-500">staf</span></h4>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5 my-2">
-                          <div className={`h-1.5 rounded-full ${isSelected ? 'bg-blue-600' : 'bg-blue-400'}`} style={{ width: `${pct}%` }}></div>
+                        <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${isSelected ? 'text-blue-700' : 'text-gray-500'}`}>{label}</p>
+                        <h4 className={`text-3xl font-black mb-2 ${isSelected ? 'text-blue-900' : 'text-gray-800'}`}>{count} <span className="text-xs font-medium text-gray-500">staf</span></h4>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 my-3 max-w-[80%]">
+                          <div className={`h-1.5 rounded-full ${isSelected ? 'bg-blue-600' : 'bg-blue-500'}`} style={{ width: `${pct}%` }}></div>
                         </div>
-                        <span className="text-xs font-bold text-gray-600">{pct}% daripada jumlah</span>
+                        <span className="text-xs font-bold text-gray-600">{pct}% jumlah</span>
                       </div>
                     );
                   })}
@@ -686,7 +729,7 @@ const DashboardHR = () => {
 
           {/* 2. Carian & Tapisan (Filter Bar) */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="relative w-full md:w-1/3">
+            <div className="relative w-full md:w-1/4">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input 
                 type="text" 
@@ -696,7 +739,7 @@ const DashboardHR = () => {
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-900 outline-none"
               />
             </div>
-            <div className="w-full md:w-2/3 flex flex-col sm:flex-row gap-3 items-center">
+            <div className="w-full md:w-3/4 flex flex-col sm:flex-row gap-3 items-center">
               <div className="w-full md:w-1/3 flex items-center">
                 <Filter className="text-gray-400 w-5 h-5 mr-2 shrink-0" />
                 <select value={filterPtj} onChange={(e) => setFilterPtj(e.target.value)} className="w-full py-2.5 px-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-900 outline-none bg-white">
@@ -717,7 +760,7 @@ const DashboardHR = () => {
                   placeholder="Min. Tahun di PT (Cth: 5)"
                   value={filterTahunPT} 
                   onChange={(e) => setFilterTahunPT(e.target.value)}
-                  className="w-full py-2.5 px-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-900 outline-none bg-white"
+                  className="w-full py-2.5 px-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-900 outline-none bg-white font-medium"
                 />
               </div>
               <div className="flex gap-2 shrink-0">
@@ -730,7 +773,7 @@ const DashboardHR = () => {
                 </button>
                 <button
                   onClick={handleResetFilters}
-                  className={`flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-semibold transition-all border ${isFiltered ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' : 'bg-gray-50 text-gray-500 border-gray-200'}`}
+                  className={`flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-semibold transition-all border ${isFiltered ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}`}
                 >
                   <RotateCcw className="w-4 h-4 mr-1.5" /> Set Semula
                 </button>
@@ -752,7 +795,7 @@ const DashboardHR = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredStaff.length > 0 ? filteredStaff.map((staff) => {
+                  {activeDataForCharts.length > 0 ? activeDataForCharts.map((staff) => {
                     const isRed = staff.alertLevel === 'red';
                     const isYellow = staff.alertLevel === 'yellow';
                     const rowClass = isRed ? 'bg-red-50 hover:bg-red-100' : isYellow ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
@@ -780,7 +823,7 @@ const DashboardHR = () => {
                           <p className="font-bold text-gray-900 text-sm">{staff.nama}</p>
                           <p className="text-xs text-gray-500 font-mono mt-0.5">{staff.no_pekerja}</p>
                           {staff.alertLevel !== 'none' && (
-                            <p className={`text-[10px] font-bold mt-1 inline-block px-1.5 py-0.5 rounded ${isRed ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800'}`}>
+                            <p className={`text-[10px] font-bold mt-1.5 inline-block px-2 py-0.5 rounded shadow-sm border ${isRed ? 'bg-red-100 text-red-700 border-red-200' : 'bg-yellow-100 text-yellow-800 border-yellow-300'}`}>
                               {staff.alertMsgs[0]}
                             </p>
                           )}
@@ -840,7 +883,7 @@ const DashboardHR = () => {
                 >
                   <Printer className="w-4 h-4 mr-1.5" /> Cetak Profil
                 </button>
-                <button onClick={() => setSelectedStaff(null)} className="p-2 bg-blue-800 hover:bg-red-500 rounded-full transition-colors text-white ml-2">
+                <button onClick={() => setSelectedStaff(null)} className="p-2 bg-blue-800 hover:bg-red-500 rounded-full transition-colors text-white ml-2 shadow-md">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -863,9 +906,9 @@ const DashboardHR = () => {
                     <p className="text-gray-500 mb-1">Negeri</p>
                     <p className="font-semibold text-gray-900">{selectedStaff.negeri}</p>
                   </div>
-                  <div className="md:col-span-3 bg-blue-50 p-3 rounded-lg mt-2">
-                    <p className="text-blue-700 text-xs mb-1">Pusat Tanggungjawab (PTJ)</p>
-                    <p className="font-bold text-blue-900">{selectedStaff.ptj}</p>
+                  <div className="md:col-span-3 bg-blue-50 p-3 rounded-lg mt-2 border border-blue-100">
+                    <p className="text-blue-700 text-xs mb-1 font-bold">Pusat Tanggungjawab (PTJ)</p>
+                    <p className="font-bold text-blue-900 text-base">{selectedStaff.ptj}</p>
                   </div>
                 </div>
               </div>
@@ -886,7 +929,7 @@ const DashboardHR = () => {
                     <span className="text-gray-500">Tarikh PT Semasa</span>
                     <span className="font-semibold text-gray-900">{selectedStaff.tarikh_pt_sekarang}</span>
                   </li>
-                  <li className="flex justify-between border-b border-gray-100 pb-2 bg-teal-50 px-2 py-1 rounded">
+                  <li className="flex justify-between border-b border-gray-100 pb-2 bg-teal-50 px-2 py-1.5 rounded">
                     <span className="text-teal-700 font-medium">Tempoh di PT Terkini</span>
                     <span className="font-bold text-teal-800">{selectedStaff.ptDurationStr}</span>
                   </li>
@@ -905,16 +948,16 @@ const DashboardHR = () => {
                     <span className="text-gray-500">Tarikh Lahir</span>
                     <span className="font-semibold text-gray-900">{selectedStaff.tarikh_lahir}</span>
                   </li>
-                  <li className="flex justify-between border-b border-gray-100 pb-2">
+                  <li className="flex justify-between border-b border-gray-100 pb-2 bg-blue-50 px-2 py-1.5 rounded">
                     <span className="text-blue-700 font-medium">Umur Semasa (Tahun {new Date().getFullYear()})</span>
-                    <span className="font-black text-blue-900 bg-blue-100 px-2 py-0.5 rounded">{selectedStaff.umurSemasa ? selectedStaff.umurSemasa + ' Tahun' : '-'}</span>
+                    <span className="font-black text-blue-900">{selectedStaff.umurSemasa ? selectedStaff.umurSemasa + ' Tahun' : '-'}</span>
                   </li>
                   <li className="flex justify-between border-b border-gray-100 pb-2 mt-2">
                     <span className="text-gray-500">Umur Pilihan Bersara</span>
                     <span className="font-semibold text-gray-900">{selectedStaff.umur_bersara} Tahun</span>
                   </li>
-                  <li className="flex justify-between pt-1 mt-6 bg-red-50 p-3 rounded-lg border border-red-100">
-                    <span className="text-red-700 font-medium flex items-center"><Clock className="w-4 h-4 mr-2" /> Tarikh Kuatkuasa Bersara</span>
+                  <li className="flex justify-between pt-1 mt-6 bg-red-50 p-3 rounded-lg border border-red-100 shadow-sm">
+                    <span className="text-red-700 font-bold flex items-center"><Clock className="w-4 h-4 mr-2" /> Tarikh Kuatkuasa Bersara</span>
                     <span className="font-bold text-red-700">{selectedStaff.tarikh_bersara}</span>
                   </li>
                 </ul>
@@ -1335,32 +1378,37 @@ export default function App() {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-12">
-          {/* SUSUN ATUR 3 LAJUR DI SINI */}
+          {/* SUSUN ATUR 3 LAJUR */}
           <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-200">
+            {/* Lajur 1: Gambar */}
             <div className="p-6 bg-gray-50 flex flex-col justify-center">
               <div className="rounded-lg overflow-hidden border-4 border-white shadow-md bg-white">
                 <img src="https://lh3.googleusercontent.com/d/1n9Bh5nT3ylkqobJ2AVSvaAQvCFItcnZf" alt="Bangunan RISDA Pahang" className="w-full h-auto object-cover min-h-[200px]" />
               </div>
             </div>
             
+            {/* Lajur 2: Peta Google HQ */}
             <div className="p-0 h-64 md:h-auto bg-gray-200 relative">
               <iframe width="100%" height="100%" frameBorder="0" scrolling="no" marginHeight="0" marginWidth="0" src="https://maps.google.com/maps?q=Pejabat%20RISDA%20Negeri%20Pahang&t=&z=15&ie=UTF8&iwloc=&output=embed" className="absolute inset-0 w-full h-full"></iframe>
             </div>
             
+            {/* Lajur 3: Alamat & Butang */}
             <div className="p-6 flex flex-col">
               <p className="text-gray-700 text-sm mb-4 leading-relaxed">
-                Tingkat 1, Blok A, Bangunan RISDA, Lot 7876, Jalan Haji Junid, 25200 Kuantan, Pahang.<br/><br/>
-                <span className="font-bold text-gray-900">Tel:</span> 09-5141911 / 09-5141912
+                Tingkat 1, Blok A, Bangunan RISDA, Lot 7876, Jalan Haji Junid,<br/>25200 Kuantan, Pahang.
               </p>
+              <div className="text-gray-700 text-sm space-y-1 mb-8">
+                <p><span className="font-bold text-gray-900">Tel :</span> 09-5141911 / 09-5141912</p>
+              </div>
               
               <div className="mt-auto space-y-3">
-                <button onClick={() => setLokasiTab(lokasiTab === 'daerah' ? '' : 'daerah')} className={`w-full flex items-center px-4 py-2 border-2 rounded-lg font-bold transition-colors ${lokasiTab === 'daerah' ? 'border-blue-900 bg-blue-900 text-white' : 'border-blue-900 text-blue-900 hover:bg-blue-50'}`}>
+                <button onClick={() => setLokasiTab(lokasiTab === 'daerah' ? '' : 'daerah')} className={`w-full flex items-center px-4 py-2 border rounded-lg font-bold transition-colors ${lokasiTab === 'daerah' ? 'border-blue-900 bg-blue-900 text-white shadow-md' : 'border-blue-900 text-blue-900 hover:bg-blue-50'}`}>
                   <MapPin className="w-5 h-5 mr-3" /> Pejabat Daerah (8 PT)
                 </button>
-                <button onClick={() => setLokasiTab(lokasiTab === 'stesen' ? '' : 'stesen')} className={`w-full flex items-center px-4 py-2 border-2 rounded-lg font-bold transition-colors ${lokasiTab === 'stesen' ? 'border-teal-700 bg-teal-700 text-white' : 'border-teal-700 text-teal-700 hover:bg-teal-50'}`}>
+                <button onClick={() => setLokasiTab(lokasiTab === 'stesen' ? '' : 'stesen')} className={`w-full flex items-center px-4 py-2 border rounded-lg font-bold transition-colors ${lokasiTab === 'stesen' ? 'border-teal-700 bg-teal-700 text-white shadow-md' : 'border-teal-700 text-teal-700 hover:bg-teal-50'}`}>
                   <List className="w-5 h-5 mr-3" /> Pejabat Stesen (20 PRS)
                 </button>
-                <button onClick={() => setLokasiTab(lokasiTab === 'mini' ? '' : 'mini')} className={`w-full flex items-center px-4 py-2 border-2 rounded-lg font-bold transition-colors ${lokasiTab === 'mini' ? 'border-orange-500 bg-orange-500 text-white' : 'border-orange-500 text-orange-600 hover:bg-orange-50'}`}>
+                <button onClick={() => setLokasiTab(lokasiTab === 'mini' ? '' : 'mini')} className={`w-full flex items-center px-4 py-2 border rounded-lg font-bold transition-colors ${lokasiTab === 'mini' ? 'border-orange-500 bg-orange-500 text-white shadow-md' : 'border-orange-500 text-orange-600 hover:bg-orange-50'}`}>
                   <Layers className="w-5 h-5 mr-3" /> Pejabat Mini Stesen (3 PRMS)
                 </button>
               </div>
@@ -1368,12 +1416,13 @@ export default function App() {
           </div>
         </div>
 
+        {/* Tab Panel: DAERAH */}
         {lokasiTab === 'daerah' && (
           <div className="animate-in slide-in-from-top-4 duration-300">
             <h3 className="text-2xl font-bold text-blue-900 mb-6 border-b-2 border-yellow-400 pb-2 inline-block">Senarai Pejabat Daerah (8 PT)</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {daerahList.map((daerah, idx) => (
-                <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row gap-4 shadow-sm">
+                <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row gap-4 shadow-sm relative overflow-hidden hover:border-blue-300 transition-colors">
                   {/* Peta Mini Untuk Pejabat Daerah */}
                   <div className="w-full sm:w-1/3 h-40 sm:h-auto relative rounded-lg overflow-hidden border border-gray-200 shrink-0 bg-gray-100">
                     <iframe width="100%" height="100%" frameBorder="0" scrolling="no" marginHeight="0" marginWidth="0" src={`https://maps.google.com/maps?q=${encodeURIComponent(daerah.nama + ', Pahang')}&t=&z=14&ie=UTF8&iwloc=&output=embed`} className="absolute inset-0 w-full h-full"></iframe>
@@ -1381,10 +1430,12 @@ export default function App() {
                       Maps <span className="ml-1">↗</span>
                     </a>
                   </div>
-                  <div className="w-full sm:w-2/3 flex flex-col justify-center">
+                  <div className="w-full sm:w-2/3 flex flex-col justify-center mt-2 sm:mt-0">
                     <h4 className="font-bold text-gray-900 text-md mb-2">{daerah.nama}</h4>
                     <p className="text-sm text-gray-600 mb-3 leading-relaxed">{daerah.alamat}</p>
-                    <p className="text-sm font-medium text-blue-800 bg-blue-50 inline-block px-3 py-1 rounded self-start"><Phone className="w-3 h-3 inline mr-1" /> {daerah.tel}</p>
+                    <div className="mt-auto">
+                      <p className="text-sm font-medium text-blue-800 bg-blue-50 border border-blue-100 inline-block px-3 py-1 rounded"><Phone className="w-3 h-3 inline mr-1" /> {daerah.tel}</p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1392,6 +1443,7 @@ export default function App() {
           </div>
         )}
 
+        {/* Tab Panel: STESEN & MINI STESEN */}
         {(lokasiTab === 'stesen' || lokasiTab === 'mini') && (
           <div className="animate-in slide-in-from-top-4 duration-300">
             {(() => {
@@ -1431,7 +1483,7 @@ export default function App() {
                   .map((stesen, idx) => {
                     const isMini = stesen.nama.toLowerCase().includes('mini') || stesen.nama.toLowerCase().includes('prms');
                     return (
-                      <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row gap-4 shadow-sm relative overflow-hidden">
+                      <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row gap-4 shadow-sm relative overflow-hidden hover:border-teal-300 transition-colors">
                         {/* Peta Mini Untuk Stesen / PRMS */}
                         <div className="w-full sm:w-1/3 h-40 sm:h-auto relative rounded-lg overflow-hidden border border-gray-200 shrink-0 bg-gray-100">
                            <iframe width="100%" height="100%" frameBorder="0" scrolling="no" marginHeight="0" marginWidth="0" src={`https://maps.google.com/maps?q=${encodeURIComponent(stesen.nama + ', Pahang')}&t=&z=14&ie=UTF8&iwloc=&output=embed`} className="absolute inset-0 w-full h-full"></iframe>
