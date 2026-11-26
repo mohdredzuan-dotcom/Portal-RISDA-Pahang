@@ -21,16 +21,37 @@
   </head>
   <body class="bg-gray-50">
     <div id="root"></div>
-    <script type="text/babel" data-type="module" data-presets="react,env">
+    <script type="module">
       import React from "react";
       import ReactDOM from "react-dom/client";
-      import App from "./App.jsx";
 
-      ReactDOM.createRoot(document.getElementById("root")).render(
-        <React.StrictMode>
-          <App />
-        </React.StrictMode>
-      );
+      async function bootPortal() {
+        const rootEl = document.getElementById("root");
+        try {
+          const res = await fetch(`./App.jsx?v=${Date.now()}`);
+          if (!res.ok) throw new Error(`Gagal memuatkan App.jsx (HTTP ${res.status})`);
+          const rawCode = await res.text();
+          const compiled = Babel.transform(rawCode, {
+            presets: ["react"],
+            filename: "App.jsx"
+          }).code;
+
+          const blob = new Blob([compiled], { type: "application/javascript" });
+          const blobUrl = URL.createObjectURL(blob);
+          const mod = await import(blobUrl);
+          URL.revokeObjectURL(blobUrl);
+
+          const AppComponent = mod.default;
+          ReactDOM.createRoot(rootEl).render(
+            React.createElement(React.StrictMode, null, React.createElement(AppComponent))
+          );
+        } catch (err) {
+          console.error(err);
+          rootEl.innerHTML = `<div style="padding:24px;font-family:sans-serif;color:#991b1b;background:#fef2f2;margin:24px;border-radius:12px;border:1px solid #fecaca;"><strong>Ralat Memuatkan Portal:</strong> ${err.message}</div>`;
+        }
+      }
+
+      bootPortal();
     </script>
   </body>
 </html>
